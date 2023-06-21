@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 
 f = f"{Path(__file__).parent}"
+sys.path.append(f"{f}/.")
 sys.path.append(f"{f}/..")
 sys.path.append(f"{f}/../../../..")
 
@@ -74,8 +75,8 @@ def run_mnist_inference(pcc, PERF_CNT=1):
             tt_output = tt_mnist_model(tt_image)
             profiler.end("\nAverage execution time of tt_mnist model")
 
-        tt_output = tt_output.to(host)
-        tt_output = torch.Tensor(tt_output.data()).reshape(tt_output.shape())
+        tt_output = tt_output.to('cpu')
+        #tt_output = torch.Tensor(tt_output.data()).reshape(tt_output.shape())
 
         logger.info(f"Correct Output: {actual_output}")
         logger.info(f"Predicted Output: {tt_output.topk(1).indices}\n")

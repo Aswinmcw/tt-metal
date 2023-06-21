@@ -2,13 +2,14 @@ from pathlib import Path
 import sys
 
 f = f"{Path(__file__).parent}"
+sys.path.append(f"{f}/.")
 sys.path.append(f"{f}/..")
 sys.path.append(f"{f}/../../../..")
 
 import torch
 
 import tt_lib
-from libs.tt_lib.fallback_ops import fallback_ops
+from tt_lib.fallback_ops import fallback_ops
 from utils import tt_linear, get_shape
 from utility_functions_new import torch2tt_tensor
 

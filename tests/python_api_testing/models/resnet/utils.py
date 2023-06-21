@@ -45,3 +45,14 @@ def fold_bn_to_conv(conv: torch.nn.Conv2d, bn: torch.nn.BatchNorm2d) -> Tuple[nn
     bias = bias.squeeze(-1).squeeze(-1).squeeze(-1)
 
     return (nn.Parameter(weight), nn.Parameter(bias))
+
+
+def get_shape(shape):
+    """Insert 1's in the begining of shape list until the len(shape) = 4"""
+    if len(shape) <= 4:
+        new_shape = [1 for i in range(4 - len(shape))]
+        new_shape.extend(shape)
+    else:
+        new_shape = shape
+    return new_shape
+
