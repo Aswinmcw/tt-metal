@@ -56,7 +56,7 @@ std::optional<uint32_t> get_semaphore_address(const Program &program, const Core
             }
             uint32_t addr = num_semaphores == 0
                                 ? SEMAPHORE_BASE
-                                : program.semaphore_address(num_semaphores - 1) + L1_ALIGNMENT;
+                                : program.semaphore_address(num_semaphores - 1) + ALIGNED_SIZE_PER_SEMAPHORE;
             if (!address.has_value()) {
                 address = addr;
             } else if (addr != address) {
@@ -566,10 +566,15 @@ size_t GetNumPCIeDevices() {
 #endif
 }
 
+<<<<<<< HEAD
 Device *CreateDevice(chip_id_t device_id, const uint8_t num_hw_cqs, const std::vector<uint32_t>& l1_bank_remap) {
-    ZoneScoped;
     Device * dev = new Device(device_id, num_hw_cqs, l1_bank_remap);
+=======
+Device *CreateDevice(chip_id_t device_id, const std::vector<uint32_t>& l1_bank_remap) {
+    ZoneScoped;
+    Device * dev = new Device(device_id, l1_bank_remap);
     detail::InitDeviceProfiler(dev);
+>>>>>>> #2291: Update tracy
     return dev;
 }
 
