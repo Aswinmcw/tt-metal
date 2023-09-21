@@ -131,8 +131,8 @@ run_stress_post_commit_pipeline_tests() {
     local pipeline_type=$2
     local dispatch_mode=$3
 
-    # Run for 23.5h to allow next run to kick off
-    RUNTIME_MAX=84600
+    # Run for 23.25h to allow next run to kick off
+    RUNTIME_MAX=83700
 
     if [[ $tt_arch == "grayskull" ]]; then
         suite_duration=2700
