@@ -23,13 +23,32 @@ namespace tt {
 
 namespace tt_metal {
 
+
+struct UniqueId {
+    using T = uint32_t;
+    T value;
+
+    tt::stl::reflection::Attributes attributes() const {
+        return {{"value", this->value}};
+    }
+
+    bool operator<(const UniqueId& unique_id_b) const {
+        return this->value < unique_id_b.value;
+    }
+};
+
+inline UniqueId::T GLOBAL_UNIQUE_ID = 0;
+
 class Tensor {
 
     public:
         // ======================================================================================
         //                                  Hi Level APIs
         // ======================================================================================
-        Tensor(const Storage& storage, const Shape& shape, DataType dtype, Layout layout, std::optional<ShardSpec> shard_spec = std::nullopt);
+
+        Tensor(const UniqueId& unique_id, const Storage& storage, const Shape& shape, DataType dtype, Layout layout, std::optional<ShardSpec> shard_spec);
+        Tensor(const Storage& storage, const Shape& shape, DataType dtype, Layout layout, std::optional<ShardSpec> shard_spec);
+        Tensor(const Storage& storage, const Shape& shape, DataType dtype, Layout layout);
 
         Tensor(const Tensor &other) = default;
         Tensor& operator=(const Tensor &other) = default;
@@ -111,12 +130,12 @@ class Tensor {
 
         std::vector<uint32_t> host_page_ordering();
     private:
+        UniqueId unique_id;
         Storage storage_;
         Shape shape_;
         DataType dtype_;
         Layout layout_;
         std::optional<ShardSpec> shard_spec_;
-
 };
 
 Tensor create_device_tensor(const Shape& shape, DataType dtype, Layout layout, Device *device, const MemoryConfig& memory_config = {.memory_layout=tt::tt_metal::TensorMemoryLayout::INTERLEAVED});
