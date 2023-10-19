@@ -7,7 +7,7 @@ on:
 
 jobs:
   stress-build-and-unit-tests:
-    timeout-minutes: 1440
+    timeout-minutes: 1410
     strategy:
       # Do not fail-fast because we need to ensure all tests go to completion
       # so we try not to get hanging machines
