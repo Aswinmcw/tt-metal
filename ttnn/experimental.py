@@ -65,3 +65,33 @@ def layer_norm(
     output_tensor = Tensor(output_tensor)
     output_tensor = reshape(output_tensor, original_shape)
     return output_tensor
+
+
+def moreh_softmax(input_tensor: Tensor, dim: int) -> Tensor:
+    """
+    moreh_softmax(input_tensor: Tensor, dim: int) -> Tensor
+
+    Compute softmax over :attr:`input_tensor` along :attr:`dim`.
+
+    Args:
+        * :attr:`input_tensor`: the input tensor
+        * :attr:`dim`: the dimension along which to compute softmax.
+
+    Example::
+
+        >>> tensor = ttnn.to_device(ttnn.from_torch(torch.zeros((1, 1, 64, 32), dtype=torch.bfloat16)), device)
+        >>> output = ttnn.softmax(tensor, -1)
+        >>> print(output[0, 0, 0, :3])
+        Tensor([ 0.0310059, 0.0310059, 0.0310059], dtype=bfloat16 )
+
+    """
+
+    rank = len(input_tensor.shape)
+    if dim < 0:
+        dim = rank + dim
+    # if dim != rank - 1:
+    #     raise RuntimeError("Softmax can only operate on the last dimension.")
+
+    ttl_input_tensor = input_tensor._tensor
+    ttl_output_tensor = ttl.operations.primary.moreh_softmax(ttl_input_tensor, dim)
+    return Tensor(ttl_output_tensor)
