@@ -35,7 +35,7 @@ test-list:
             data-layout: ["TILE"]
             data-type: ["BFLOAT16"]
             buffer-type: ["DRAM", "L1", "SYSTEM_MEMORY"]
-        out-buffer-type: ["DRAM", "L1"]
+        out-buffer-type: ["DRAM", "L1", "SYSTEM_MEMORY"]
       output-file: eltwise_add_sweep.csv
   - eltwise-add:
       shape:
@@ -72,5 +72,5 @@ test-list:
             data-layout: ["ROW_MAJOR"]
             data-type: ["BFLOAT16"]
             buffer-type: ["DRAM", "L1", "SYSTEM_MEMORY"]
-        out-buffer-type: ["DRAM", "L1"]
+        out-buffer-type: ["DRAM", "L1", "SYSTEM_MEMORY"]
       output-file: eltwise_add_sweep.csv
