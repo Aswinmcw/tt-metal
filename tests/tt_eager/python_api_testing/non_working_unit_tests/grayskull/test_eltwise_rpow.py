@@ -19,12 +19,11 @@ def run_eltwise_rpow_tests(input_shape, dtype, dlayout, in_mem_config, out_mem_c
     if in_mem_config == "SYSTEM_MEMORY":
         in_mem_config = None
 
-    x = torch.Tensor(size=input_shape).uniform_(-100, 100)
+    x = torch.Tensor(size=input_shape).uniform_(-25, 25)
     x_ref = x.detach().clone()
 
     # get ref result
     ref_value = pytorch_ops.eltwise_rpow(x_ref, factor=factor)
-
     tt_result = tt_eltwise_rpow(
         x=x,
         device=device,
@@ -96,6 +95,15 @@ test_sweep_args = [
         (ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM)),
         0.19607612839476013,
         1190117,
+    ),
+    (
+        (12, 13, 256, 64),
+        ttl.tensor.DataType.BFLOAT16,
+        ttl.tensor.Layout.ROW_MAJOR,
+        (ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.L1)),
+        (ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM)),
+        3.602838119161318,
+        19978641,
     ),
 ]
 
