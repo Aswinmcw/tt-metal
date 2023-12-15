@@ -76,14 +76,14 @@ inline void _llk_math_pack_sync_init_() {
     }
 }
 
-template <bool mail2math=true, bool mail2pack=true>
-inline void _llk_math_get_tile_(std::uint32_t tile_index, std::uint32_t *p_tile) {
-    if constexpr (mail2math) {
-       *p_tile = mailbox_read(ThreadId::UnpackThreadId);
-    } else {
-       *p_tile = 0;
-    }
-}
+// template <bool mail2math=true, bool mail2pack=true>
+// inline void _llk_math_get_tile_(std::uint32_t tile_index, std::uint32_t *p_tile) {
+//     if constexpr (mail2math) {
+//        *p_tile = mailbox_read(ThreadId::UnpackThreadId);
+//     } else {
+//        *p_tile = 0;
+//     }
+// }
 
 template <bool mail2math=true, bool mail2pack=true>
 inline void _llk_math_release_tile_() {
@@ -96,9 +96,9 @@ inline void _llk_math_debug_dump_(std::uint8_t *data, std::uint32_t byte_size) {
     debug_dump(data, byte_size);
 }
 
-inline void _llk_math_debug_dump_seek_(std::uint8_t offset) {
-    debug_dump_seek(offset);
-}
+// inline void _llk_math_debug_dump_seek_(std::uint8_t offset) {
+//     debug_dump_seek(offset);
+// }
 
 //Functions only used by wh,, alu reconfig happens in unpack thread for gs
 inline void _llk_math_reconfig_data_format_() {}

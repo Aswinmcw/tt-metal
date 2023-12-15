@@ -9,7 +9,7 @@
 #include "noc_nonblocking_api.h"
 
 #include "sfpi.h"
-
+#include "llk_sfpu_types.h"
 #include "ckernel_sfpu_converter.h"
 #include "ckernel_sfpu_exp.h"
 #include "ckernel_sfpu_cdf.h"

@@ -30,8 +30,8 @@ inline void _llk_math_eltwise_unary_sfpu_done_() {
 }
 
 inline void _llk_math_eltwise_unary_sfpu_inc_dst_face_addr_() {
-    math::inc_dst_addr<8>();
-    math::inc_dst_addr<8>();
+    // math::inc_dst_addr<8>();
+    // math::inc_dst_addr<8>();
 }
 
 inline void _llk_math_eltwise_unary_sfpu_init_() {

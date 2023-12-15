@@ -131,14 +131,14 @@ inline void _llk_pack_dest_init_() {
     pack_sync_tile_dst_ptr = 0;
 }
 
-template <bool mail2math=true, bool mail2pack=true>
-inline void _llk_pack_get_tile_(std::uint32_t tile_index, uint32_t *p_tile) {
-    if constexpr (mail2pack) {
-       *p_tile =  mailbox_read(ThreadId::UnpackThreadId);
-    } else {
-       *p_tile = 0;
-    }
-}
+// template <bool mail2math=true, bool mail2pack=true>
+// inline void _llk_pack_get_tile_(std::uint32_t tile_index, uint32_t *p_tile) {
+//     if constexpr (mail2pack) {
+//        *p_tile =  mailbox_read(ThreadId::UnpackThreadId);
+//     } else {
+//        *p_tile = 0;
+//     }
+// }
 
 template <bool mail2math=true, bool mail2pack=true>
 inline void _llk_pack_release_tile_() {
@@ -151,27 +151,27 @@ inline void _llk_pack_debug_dump_(std::uint8_t *data, std::uint32_t byte_size) {
     debug_dump(data, byte_size);
 }
 
-inline void _llk_pack_debug_dump_seek_(std::uint8_t offset) {
-    debug_dump_seek(offset);
-}
+// inline void _llk_pack_debug_dump_seek_(std::uint8_t offset) {
+//     debug_dump_seek(offset);
+// }
 
 template<bool is_fp32_dest_acc_en = false /* unused */, bool is_tile_dim_reconfig_en = false /* unused */, DstTileFaceLayout FaceLayout = DstTileFaceLayout::RowMajor /* unused */>
 inline void _llk_pack_reconfig_data_format_(const std::uint32_t pack_dst_format, const std::uint32_t tile_size) {
-    if(pack_dst_format != (uint)DataFormat::Invalid) {
-        reconfig_packer_data_format(pack_dst_format, tile_size);
-    }
+    // if(pack_dst_format != (uint)DataFormat::Invalid) {
+    //     reconfig_packer_data_format(pack_dst_format, tile_size);
+    // }
 }
 
 template<bool is_fp32_dest_acc_en = false /* unused */, bool is_tile_dim_reconfig_en = false /* unused */, DstTileFaceLayout FaceLayout = DstTileFaceLayout::RowMajor /* unused */>
 inline void _llk_pack_reconfig_data_format_(const std::uint32_t old_pack_dst_format, const std::uint32_t new_pack_dst_format, const std::uint32_t new_tile_size) {
-    if((old_pack_dst_format != new_pack_dst_format)
-       && (old_pack_dst_format != (uint)DataFormat::Invalid)
-       && (new_pack_dst_format != (uint)DataFormat::Invalid)) {
-        reconfig_packer_data_format(new_pack_dst_format, new_tile_size);
-    }
+    // if((old_pack_dst_format != new_pack_dst_format)
+    //    && (old_pack_dst_format != (uint)DataFormat::Invalid)
+    //    && (new_pack_dst_format != (uint)DataFormat::Invalid)) {
+    //     reconfig_packer_data_format(new_pack_dst_format, new_tile_size);
+    // }
 }
 
-TT_ALWAYS_INLINE void _llk_pack_relu_config_(std::uint32_t config) {
+inline void _llk_pack_relu_config_(std::uint32_t config) {
     ReluType mode = (config&0xf) == 0 ? ReluType::NO_RELU : ((config&0xf) == 3 ? ReluType::MAX_THRESHOLD_RELU : ReluType::MIN_THRESHOLD_RELU);
     uint32_t threshold = (config>>16) << STACC_RELU_ReluThreshold_SHAMT;
     TTI_SETDMAREG(0, 0, 0, LO_16(p_gpr_pack::TMP0));
@@ -185,7 +185,7 @@ TT_ALWAYS_INLINE void _llk_pack_relu_config_(std::uint32_t config) {
 }
 
 inline void _llk_pack_reconfig_l1_acc_(const std::uint32_t enable) {
-    TT_LLK_DUMP("llk_pack_reconfig_l1_acc({})", enable);
+    // TT_LLK_DUMP("llk_pack_reconfig_l1_acc({})", enable);
 }
 
 template <bool untilize = false, ReduceDim dim>
@@ -198,60 +198,60 @@ inline void _llk_pack_reduce_mask_config_() {
     // Wait for packer to finish to avoid breaking its current configuration
     TTI_STALLWAIT(p_stall::STALL_CFG, p_stall::PACK);
 
-    if constexpr (dim == ReduceDim::REDUCE_ROW) {
-        edge_offset_sec1_mask = 0x0001;
-        // Configure TILE_ROW_SET_MAPPING registers
-        if constexpr (untilize) {
-            TTI_SETDMAREG(0, 0x1111, 0, LO_16(p_gpr_pack::TMP0));
-            TTI_SETDMAREG(0, 0x1111, 0, HI_16(p_gpr_pack::TMP0));
+    // if constexpr (dim == ReduceDim::REDUCE_ROW) {
+    //     edge_offset_sec1_mask = 0x0001;
+    //     // Configure TILE_ROW_SET_MAPPING registers
+    //     if constexpr (untilize) {
+    //         TTI_SETDMAREG(0, 0x1111, 0, LO_16(p_gpr_pack::TMP0));
+    //         TTI_SETDMAREG(0, 0x1111, 0, HI_16(p_gpr_pack::TMP0));
 
-            TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32);
-            TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_1_row_set_mapping_0_ADDR32);
-            TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_2_row_set_mapping_0_ADDR32);
-            TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_3_row_set_mapping_0_ADDR32);
-        } else {
-            TTI_SETDMAREG(0, 0x5555, 0, LO_16(p_gpr_pack::TMP0));
-            TTI_SETDMAREG(0, 0x5555, 0, HI_16(p_gpr_pack::TMP0));
+    //         TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32);
+    //         TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_1_row_set_mapping_0_ADDR32);
+    //         TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_2_row_set_mapping_0_ADDR32);
+    //         TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_3_row_set_mapping_0_ADDR32);
+    //     } else {
+    //         TTI_SETDMAREG(0, 0x5555, 0, LO_16(p_gpr_pack::TMP0));
+    //         TTI_SETDMAREG(0, 0x5555, 0, HI_16(p_gpr_pack::TMP0));
 
-            TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32);
-            TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_2_row_set_mapping_0_ADDR32);
-        }
-    } else if constexpr (dim == ReduceDim::REDUCE_COL) {
-        // Configure TILE_ROW_SET_MAPPING registers
-        if constexpr (untilize) {
-            TTI_SETDMAREG(0, 0x0005, 0, LO_16(p_gpr_pack::TMP_LO));
-        } else {
-            TTI_SETDMAREG(0, 0x0001, 0, LO_16(p_gpr_pack::TMP_LO));
-        }
-        TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32);
-        TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_1_row_set_mapping_0_ADDR32);
-    }
+    //         TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32);
+    //         TTI_WRCFG(p_gpr_pack::TMP0,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_2_row_set_mapping_0_ADDR32);
+    //     }
+    // } else if constexpr (dim == ReduceDim::REDUCE_COL) {
+    //     // Configure TILE_ROW_SET_MAPPING registers
+    //     if constexpr (untilize) {
+    //         TTI_SETDMAREG(0, 0x0005, 0, LO_16(p_gpr_pack::TMP_LO));
+    //     } else {
+    //         TTI_SETDMAREG(0, 0x0001, 0, LO_16(p_gpr_pack::TMP_LO));
+    //     }
+    //     TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32);
+    //     TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_1_row_set_mapping_0_ADDR32);
+    // }
 
-    // Initialize TMP registers with values we need to write in PCK_EDGE_OFFSET_SEC[0:1] registers
-    TTI_SETDMAREG(0, LOWER_HALFWORD(edge_offset_sec1_mask), 0, LO_16(p_gpr_pack::TMP_LO));
+    // // Initialize TMP registers with values we need to write in PCK_EDGE_OFFSET_SEC[0:1] registers
+    // TTI_SETDMAREG(0, LOWER_HALFWORD(edge_offset_sec1_mask), 0, LO_16(p_gpr_pack::TMP_LO));
 
-    // Write to PCK_EDGE_OFFSET_SEC[0:1] registers
-    TTI_WRCFG(p_gpr::ZERO,  p_cfg::WRCFG_32b, PCK_EDGE_OFFSET_SEC0_mask_ADDR32); // edge_offset_sec0_mask == p_gpr::ZERO
-    TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, PCK_EDGE_OFFSET_SEC1_mask_ADDR32);
+    // // Write to PCK_EDGE_OFFSET_SEC[0:1] registers
+    // TTI_WRCFG(p_gpr::ZERO,  p_cfg::WRCFG_32b, PCK_EDGE_OFFSET_SEC0_mask_ADDR32); // edge_offset_sec0_mask == p_gpr::ZERO
+    // TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, PCK_EDGE_OFFSET_SEC1_mask_ADDR32);
 
-    TTI_NOP; TTI_NOP;
+    // TTI_NOP; TTI_NOP;
 }
 
 inline void _llk_pack_reduce_mask_clear_() {
-    // Set masks to default value to pass through all the datums
-    uint32_t edge_offset_sec0_mask = 0xffff;
+    // // Set masks to default value to pass through all the datums
+    // uint32_t edge_offset_sec0_mask = 0xffff;
 
-    TTI_SETDMAREG(0, LOWER_HALFWORD(edge_offset_sec0_mask), 0, LO_16(p_gpr_pack::TMP_LO));
+    // TTI_SETDMAREG(0, LOWER_HALFWORD(edge_offset_sec0_mask), 0, LO_16(p_gpr_pack::TMP_LO));
 
-    // Wait for packer to finish to avoid breaking its current configuration
-    TTI_STALLWAIT(p_stall::STALL_CFG, p_stall::PACK);
+    // // Wait for packer to finish to avoid breaking its current configuration
+    // TTI_STALLWAIT(p_stall::STALL_CFG, p_stall::PACK);
 
-    TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, PCK_EDGE_OFFSET_SEC0_mask_ADDR32);
+    // TTI_WRCFG(p_gpr_pack::TMP_LO,  p_cfg::WRCFG_32b, PCK_EDGE_OFFSET_SEC0_mask_ADDR32);
 
-    // Clear out TILE_ROW_SET_MAPPING registers
-    for (uint i = 0; i < 4; i++) {
-        TTI_WRCFG(p_gpr::ZERO,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32 + i); // All mappings point to PCK_EDGE_OFFSET_SEC0_mask_ADDR32
-    }
+    // // Clear out TILE_ROW_SET_MAPPING registers
+    // for (uint i = 0; i < 4; i++) {
+    //     TTI_WRCFG(p_gpr::ZERO,  p_cfg::WRCFG_32b, TILE_ROW_SET_MAPPING_0_row_set_mapping_0_ADDR32 + i); // All mappings point to PCK_EDGE_OFFSET_SEC0_mask_ADDR32
+    // }
 
-    TTI_NOP; TTI_NOP;
+    // TTI_NOP; TTI_NOP;
 }
