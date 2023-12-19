@@ -178,8 +178,16 @@ Tensor reduce(const Tensor &input_tensor, ReduceOpMath reduce_math, ReduceOpDim 
         if (!AutoFormat::check_input_tensor_format(input_tensor, input_tensor_pad_shape)) {
             formatted_input_tensor = AutoFormat::format_input_tensor(input_tensor, device, input_tensor_pad_shape, pad_value, Layout::TILE);
         }
-        const Tensor output_tensor = operation::run_without_autoformat(Reduce{reduce_math, ReduceOpDim::W, 1.0, output_mem_config, output_dtype.value_or(input_tensor.dtype())}, {formatted_input_tensor}).at(0);
-        return operation::run_without_autoformat(Reduce{reduce_math, ReduceOpDim::H, scaler, output_mem_config}, {output_tensor}).at(0);
+
+        auto&& [input_tensors, optional_input_tensors] =
+            operation::auto_move_tensors_to_device({formatted_input_tensor});
+        const Tensor output_tensor =
+            operation::run(
+                Reduce{
+                    reduce_math, ReduceOpDim::W, 1.0, output_mem_config, output_dtype.value_or(input_tensor.dtype())},
+                input_tensors)
+                .at(0);
+        return operation::run(Reduce{reduce_math, ReduceOpDim::H, scaler, output_mem_config}, {output_tensor}).at(0);
     } else {
         return operation::run_with_autoformat(Reduce{reduce_math, reduce_dim, scaler, output_mem_config, output_dtype.value_or(input_tensor.dtype())}, {input_tensor}, {}, pad_value).at(0);
     }

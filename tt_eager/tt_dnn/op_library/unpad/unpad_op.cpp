@@ -149,7 +149,8 @@ Tensor unpad(const Tensor &input_tensor_a, const Shape &output_tensor_start, con
         }
     }
 
-    return operation::run_without_autoformat(Unpad{output_tensor_start, output_tensor_end, mem_config, output_tensor_shape, input_tensor_shape}, {input_tensor_a}).at(0);
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor_a});
+    return operation::run(Unpad{output_tensor_start, output_tensor_end, mem_config, output_tensor_shape, input_tensor_shape}, input_tensors).at(0);
 
 }
 

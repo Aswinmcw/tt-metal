@@ -89,7 +89,11 @@ inline Tensor bcast(const Tensor &input_tensor_a, const Tensor &input_tensor_b, 
 }
 
 inline Tensor bcast_without_autoformat(const Tensor &input_tensor_a, const Tensor &input_tensor_b, BcastOpMath bcast_op, BcastOpDim bcast_dim, const MemoryConfig& mem_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG) {
-    return operation::run_without_autoformat(EltwiseBinaryBroadcast{bcast_op, bcast_dim, mem_config}, {input_tensor_a, input_tensor_b}).at(0);
+    auto &&[input_tensors, optional_input_tensors] =
+        operation::auto_move_tensors_to_device({input_tensor_a, input_tensor_b});
+    return operation::run(
+               EltwiseBinaryBroadcast{bcast_op, bcast_dim, mem_config}, input_tensors, optional_input_tensors)
+        .at(0);
 }
 
 }  // namespace tt_metal

@@ -108,7 +108,8 @@ Tensor untilize(const Tensor &input_tensor_a, const MemoryConfig& output_mem_con
             return input_tensor_a;
         }
     }
-    return operation::run_without_autoformat(Untilize{output_mem_config, use_multicore, use_pack_untilize}, {input_tensor_a}).at(0);
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor_a});
+    return operation::run(Untilize{output_mem_config, use_multicore, use_pack_untilize}, input_tensors).at(0);
 }
 
 
@@ -229,7 +230,8 @@ Tensor untilize_with_unpadding(const Tensor &input_tensor_a, const Shape &output
             TT_ASSERT(false, "Cannot untilize and unpad input which is not tilized");
         }
     }
-    return operation::run_without_autoformat(UntilizeWithUnpadding{output_tensor_start, output_tensor_end, output_mem_config}, {input_tensor_a}).at(0);
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor_a});
+    return operation::run(UntilizeWithUnpadding{output_tensor_start, output_tensor_end, output_mem_config}, input_tensors).at(0);
 }
 
 }  // namespace tt_metal

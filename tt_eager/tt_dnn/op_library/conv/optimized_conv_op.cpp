@@ -83,11 +83,26 @@ Tensor optimized_conv(const Tensor& a,
     if (output_mem_config.has_value()) {
         TT_ASSERT((output_mem_config.value().is_sharded() || output_mem_config.value().memory_layout == TensorMemoryLayout::INTERLEAVED));
     }
-    return operation::run_without_autoformat(
-        OptimizedConv(conv_params, output_channels, untilize_out, has_bias, fuse_relu, math_fidelity, parallelization_config, block_config, extra_padding_for_32B_alignment, output_mem_config.value_or(a.memory_config()), output_dtype.value_or(a.dtype()), ashape
-        ),
-        {a, b},
-        {bias, conv_reader_indices}).at(0);
+
+    auto&& [input_tensors, optional_input_tensors] =
+        operation::auto_move_tensors_to_device({a, b}, {bias, conv_reader_indices});
+    return operation::run(
+               OptimizedConv(
+                   conv_params,
+                   output_channels,
+                   untilize_out,
+                   has_bias,
+                   fuse_relu,
+                   math_fidelity,
+                   parallelization_config,
+                   block_config,
+                   extra_padding_for_32B_alignment,
+                   output_mem_config.value_or(a.memory_config()),
+                   output_dtype.value_or(a.dtype()),
+                   ashape),
+               input_tensors,
+               optional_input_tensors)
+        .at(0);
 }
 
 void OptimizedConv::validate(const std::vector<Tensor>& input_tensors, const std::vector<std::optional<const Tensor>>& optional_input_tensors) const {

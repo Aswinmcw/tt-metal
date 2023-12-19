@@ -161,8 +161,9 @@ struct make_eltwise_unary {
 
 inline Tensor relu_without_autoformat(
     const Tensor& input_tensor, const MemoryConfig& output_mem_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG) {
-    return operation::run_without_autoformat(
-               EltwiseUnary{{UnaryWithParam{.op_type = UnaryOpType::RELU}}, output_mem_config}, {input_tensor})
+    auto&& [input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor});
+    return operation::run(
+               EltwiseUnary{{UnaryWithParam{.op_type = UnaryOpType::RELU}}, output_mem_config}, input_tensors)
         .at(0);
 }
 

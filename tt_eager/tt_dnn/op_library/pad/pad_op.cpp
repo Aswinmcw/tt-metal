@@ -598,8 +598,11 @@ Tensor pad(const Tensor &input_tensor, const Shape &output_tensor_shape, const S
             return input_tensor;
         }
     }
-    return operation::run_without_autoformat(Pad{output_tensor_shape, input_tensor_start, pad_value, output_mem_config, use_multicore}, {input_tensor}).at(0);
 
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor});
+    return operation::run(
+               Pad{output_tensor_shape, input_tensor_start, pad_value, output_mem_config, use_multicore}, input_tensors)
+        .at(0);
 }
 
 void PadOnHost::validate(const std::vector<Tensor> &input_tensors) const {

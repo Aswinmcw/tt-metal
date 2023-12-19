@@ -95,7 +95,11 @@ Tensor tilize(const Tensor &input_tensor_a, const MemoryConfig& output_mem_confi
             return input_tensor_a;
         }
     }
-    return operation::run_without_autoformat(Tilize{output_mem_config, output_dtype.value_or(input_tensor_a.dtype()), use_multicore}, {input_tensor_a}).at(0);
+
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor_a});
+    return operation::run(
+               Tilize{output_mem_config, output_dtype.value_or(input_tensor_a.dtype()), use_multicore}, input_tensors)
+        .at(0);
 }
 
 void TilizeWithValPadding::validate(const std::vector<Tensor> &input_tensors) const {
@@ -182,8 +186,17 @@ Tensor tilize_with_val_padding(const Tensor &input_tensor_a, const Shape &output
             TT_ASSERT(false, "Cannot tilize and pad tensor that is already tilized");
         }
     }
-    return operation::run_without_autoformat(TilizeWithValPadding{output_tensor_shape, input_tensor_start, pad_value, output_mem_config, output_dtype.value_or(input_tensor_a.dtype())}, {input_tensor_a}).at(0);
 
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor_a});
+    return operation::run(
+               TilizeWithValPadding{
+                   output_tensor_shape,
+                   input_tensor_start,
+                   pad_value,
+                   output_mem_config,
+                   output_dtype.value_or(input_tensor_a.dtype())},
+               input_tensors)
+        .at(0);
 }
 
 Tensor tilize_with_zero_padding(const Tensor &input_tensor_a, const MemoryConfig& output_mem_config, std::optional<const DataType> output_dtype) {

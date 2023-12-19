@@ -76,8 +76,11 @@ operation::ProgramWithCallbacks Downsample::create_program(const std::vector<Ten
     return {downsample_single_core(input_tensor_a, downsample_params, output_tensor)};
 }
 
-Tensor downsample(const Tensor &input_tensor_a, std::array<uint32_t, 5> downsample_params, std::optional<DataType> output_dtype) {
-    return operation::run_without_autoformat(Downsample{downsample_params, output_dtype.value_or(input_tensor_a.dtype())}, {input_tensor_a}).at(0);
+Tensor downsample(
+    const Tensor& input_tensor, std::array<uint32_t, 5> downsample_params, std::optional<DataType> output_dtype) {
+    auto&& [input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor});
+    return operation::run(Downsample{downsample_params, output_dtype.value_or(input_tensor.dtype())}, input_tensors)
+        .at(0);
 }
 
 struct DownsampleReadPatternParams {

@@ -250,11 +250,9 @@ std::vector<Tensor> run(
     return detail::decorate_operation(detail::run_device_operation)(operation, input_tensors, optional_input_tensors);
 }
 
-std::vector<Tensor> run_without_autoformat(
-    const DeviceOperation& operation,
+std::tuple<const std::vector<Tensor>, const std::vector<std::optional<const Tensor>>> auto_move_tensors_to_device(
     const std::vector<Tensor>& input_tensors,
-    const std::vector<std::optional<const Tensor>>& optional_input_tensors
-) {
+    const std::vector<std::optional<const Tensor>>& optional_input_tensors) {
     Device* device = detail::get_device(input_tensors, optional_input_tensors);
 
     std::vector<Tensor> input_tensors_on_dev;
@@ -275,7 +273,7 @@ std::vector<Tensor> run_without_autoformat(
             optional_input_tensors_on_dev.push_back(optional_input_tensor);
         }
     }
-    return run(operation, input_tensors_on_dev, optional_input_tensors_on_dev);
+    return std::make_tuple(input_tensors_on_dev, optional_input_tensors_on_dev);
 }
 
 // To be deprecated/removed in favor of new implementation where ops specifically request how to format inputs/outputss

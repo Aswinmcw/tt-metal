@@ -713,31 +713,33 @@ Tensor untilize_with_halo_v2(const Tensor& input_tensor,
     // NOTE: for HEIGHT_SHARDED, ncores_nhw == ncores
     //       for BLOCK_SHARDED, ncores_nhw is just the ncores along height dim (last tensor dim is split along width)
 
-    return operation::run_without_autoformat(UntilizeWithHaloV2{
-                                                pad_val,
-                                                ncores_nhw,
-                                                max_out_nsticks_per_core,
-                                                local_pad_nsegments_per_core,
-                                                ll_data_nsegments_per_core,
-                                                l_data_nsegments_per_core,
-                                                local_data_nsegments_per_core,
-                                                r_data_nsegments_per_core,
-                                                rr_data_nsegments_per_core,
-                                                local_data_src_start_offsets_per_core,
-                                                ll_data_src_start_offsets_per_core,
-                                                l_data_src_start_offsets_per_core,
-                                                r_data_src_start_offsets_per_core,
-                                                rr_data_src_start_offsets_per_core,
-                                                mem_config},
-                                             {input_tensor,
-                                              local_pad_start_and_size,
-                                              ll_data_start_and_size,
-                                              l_data_start_and_size,
-                                              local_data_start_and_size,
-                                              r_data_start_and_size,
-                                              rr_data_start_and_size})
-                                            .at(0);
-
+    auto&& [input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device(
+        {input_tensor,
+         local_pad_start_and_size,
+         ll_data_start_and_size,
+         l_data_start_and_size,
+         local_data_start_and_size,
+         r_data_start_and_size,
+         rr_data_start_and_size});
+    return operation::run(
+               UntilizeWithHaloV2{
+                   pad_val,
+                   ncores_nhw,
+                   max_out_nsticks_per_core,
+                   local_pad_nsegments_per_core,
+                   ll_data_nsegments_per_core,
+                   l_data_nsegments_per_core,
+                   local_data_nsegments_per_core,
+                   r_data_nsegments_per_core,
+                   rr_data_nsegments_per_core,
+                   local_data_src_start_offsets_per_core,
+                   ll_data_src_start_offsets_per_core,
+                   l_data_src_start_offsets_per_core,
+                   r_data_src_start_offsets_per_core,
+                   rr_data_src_start_offsets_per_core,
+                   mem_config},
+               input_tensors)
+        .at(0);
 }
 
 }  // namespace tt_metal

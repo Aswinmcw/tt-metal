@@ -40,14 +40,15 @@ inline Tensor embeddings(
     std::optional<uint32_t> pad_token = std::nullopt,
     const MemoryConfig &mem_config = operation::DEFAULT_OUTPUT_MEMORY_CONFIG,
     std::optional<const DataType> output_dtype = std::nullopt) {
-    return operation::run_without_autoformat(
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor, weights});
+    return operation::run(
                Embeddings{
                    .output_mem_config = mem_config,
                    .tilized = tilized,
                    .embeddings_type = embeddings_type,
                    .pad_token = pad_token,
                    .output_dtype = output_dtype.value_or(weights.dtype())},
-               {input_tensor, weights})
+               input_tensors)
         .at(0);
 }
 

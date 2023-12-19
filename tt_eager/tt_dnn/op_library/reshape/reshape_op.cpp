@@ -344,7 +344,8 @@ Tensor reshape (const Tensor &input_tensor_a, int N, int C, int H, int W, const 
         TT_ASSERT(input_tensor_a.dtype()==DataType::BFLOAT16);
         return tt::numpy::manual_insertion<bfloat16>(input_tensor_a, output_shape, DataType::BFLOAT16, Layout::ROW_MAJOR, input_tensor_a.device(), output_mem_config);
     }
-    return operation::run_without_autoformat(Reshape{N, C, H, W, output_mem_config}, {input_tensor_a}).at(0);
+    auto &&[input_tensors, optional_input_tensors] = operation::auto_move_tensors_to_device({input_tensor_a});
+    return operation::run(Reshape{N, C, H, W, output_mem_config}, input_tensors).at(0);
 }
 
 } // namespace tt_metal
