@@ -20,6 +20,7 @@ TT_EAGER_TESTS += \
 		 tests/tt_eager/ops/test_bcast_op \
 		 tests/tt_eager/ops/test_bmm_op \
 		 tests/tt_eager/ops/test_pad_op \
+		 tests/tt_eager/ops/test_software_queues \
 		 tests/tt_eager/ops/test_tilize_op \
 		 tests/tt_eager/ops/test_tilize_zero_padding \
 		 tests/tt_eager/ops/test_tilize_op_channels_last \

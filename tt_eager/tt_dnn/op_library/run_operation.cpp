@@ -246,7 +246,14 @@ std::vector<Tensor> run(const HostOperation& operation, const std::vector<Tensor
 std::vector<Tensor> run(
     const DeviceOperation& operation,
     const std::vector<Tensor>& input_tensors,
-    const std::vector<std::optional<const Tensor>>& optional_input_tensors) {
+    const std::vector<std::optional<const Tensor>>& optional_input_tensors,
+    Queue& queue) {
+    queue.push(QueuedDeviceOperation{
+        .operation = operation,
+        .input_tensors = input_tensors,
+        .optional_input_tensors = optional_input_tensors,
+        .output_tensors = operation.create_output_tensors(input_tensors)});
+
     return detail::decorate_operation(detail::run_device_operation)(operation, input_tensors, optional_input_tensors);
 }
 

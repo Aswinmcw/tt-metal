@@ -4,14 +4,52 @@
 
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
 #include <optional>
+#include <queue>
 #include <tt_eager/tensor/tensor.hpp>
+#include <variant>
 
 #include "third_party/magic_enum/magic_enum.hpp"
 #include "tt_dnn/op_library/auto_format.hpp"
 #include "tt_dnn/op_library/operation.hpp"
 #include "tt_dnn/op_library/operation_history.hpp"
 #include "tt_stl/concepts.hpp"
+
+struct Event {};
+
+struct QueuedDeviceOperation {
+    const tt::tt_metal::operation::DeviceOperation operation;
+    const std::vector<tt::tt_metal::Tensor> input_tensors;
+    const std::vector<std::optional<const tt::tt_metal::Tensor>> optional_input_tensors;
+    const std::vector<tt::tt_metal::Tensor> output_tensors;
+};
+
+using QueueItem = std::variant<std::monostate, QueuedDeviceOperation, Event>;
+
+class Queue {
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::queue<QueueItem> queue;
+
+   public:
+    Queue() {}
+
+    void push(QueueItem item) {
+        std::unique_lock<std::mutex> lock(this->mutex);
+        this->queue.push(item);
+        this->cv.notify_one();
+    }
+
+    QueueItem pop() {
+        std::unique_lock<std::mutex> lock(this->mutex);
+        this->cv.wait(lock, [&] { return not this->queue.empty(); });
+        // auto item = this->queue.front();
+        this->queue.pop();
+        return QueueItem{};
+    }
+};
 
 namespace tt::tt_metal {
 
@@ -209,23 +247,27 @@ inline void log_operation(
     const std::vector<std::optional<const Tensor>>& optional_input_tensors = {}) {}
 #endif
 
+inline Queue DEFAULT_QUEUE;
+
 std::vector<Tensor> run(const HostOperation& operation, const std::vector<Tensor>& input_tensors);
 std::vector<Tensor> run(
     const DeviceOperation& operation,
     const std::vector<Tensor>& input_tensors,
-    const std::vector<std::optional<const Tensor>>& optional_input_tensors = {});
+    const std::vector<std::optional<const Tensor>>& optional_input_tensors = {},
+    Queue& queue = DEFAULT_QUEUE);
 template <typename ConcreteOperation>
 inline std::vector<Tensor> run(
     ConcreteOperation&& concrete_op,
     const std::vector<Tensor>& input_tensors,
-    const std::vector<std::optional<const Tensor>>& optional_input_tensors = {}) {
+    const std::vector<std::optional<const Tensor>>& optional_input_tensors = {},
+    Queue& queue = DEFAULT_QUEUE) {
     if constexpr (detail::is_host_operation<ConcreteOperation>()) {
         TT_ASSERT(optional_input_tensors.empty());
         const auto operation = HostOperation(concrete_op);
         return run(operation, input_tensors);
     } else if constexpr (detail::is_device_operation<ConcreteOperation>()) {
         const auto operation = DeviceOperation(concrete_op);
-        return run(operation, input_tensors, optional_input_tensors);
+        return run(operation, input_tensors, optional_input_tensors, queue);
     } else {
         static_assert(tt::stl::concepts::always_false_v<ConcreteOperation>, "Unsupported Operation");
     }
