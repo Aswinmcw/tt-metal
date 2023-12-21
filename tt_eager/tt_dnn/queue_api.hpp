@@ -10,8 +10,9 @@ void EnqueueHostToDeviceTransfer(Queue&, Tensor& src, Tensor& dst);
 void EnqueueDeviceToHostTransfer(Queue&, Tensor& src, Tensor& dst);
 
 
-void RecordEvent(Queue&, Event&);
-void WaitForEvent(Queue&, Event&);
+void QueueRecordEvent(Queue&, Event&);
+void QueueWaitForEvent(Queue&, Event&);
+void EventSynchronize(Event&);
 
 
 void EnqueueOperation(Queue&, DeviceOperation&, const std::vector<Tensor>& input_tensors, const std::vector<Tensor>& output_tensors);
