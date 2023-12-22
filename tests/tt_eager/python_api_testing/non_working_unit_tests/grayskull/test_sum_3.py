@@ -49,7 +49,28 @@ def run_sum_3_test(input_shape, dtype, dlayout, in_mem_config, out_mem_config, d
     assert success
 
 
+# sum-3,"[[3, 3, 224, 32]]","{'dtype': [<DataType.BFLOAT16: 0>], 'layout': [<Layout.TILE: 1>], 'input_mem_config': [None], 'output_mem_config': tt::tt_metal::MemoryConfig(memory_layout=TensorMemoryLayout::INTERLEAVED,buffer_type=BufferType::DRAM)}",4931206,"(('TT_METAL_SLOW_DISPATCH_MODE', ''),)",error,Unexpected index,fail
+# sum-3,"[[6, 2, 224, 192]]","{'dtype': [<DataType.BFLOAT16: 0>], 'layout': [<Layout.TILE: 1>], 'input_mem_config': [None], 'output_mem_config': tt::tt_metal::MemoryConfig(memory_layout=TensorMemoryLayout::INTERLEAVED,buffer_type=BufferType::DRAM)}",13482735,"(('TT_METAL_SLOW_DISPATCH_MODE', '1'),)",error,Unexpected index,fail
+
 test_sweep_args = [
+    (
+        (3, 3, 224, 32),
+        [ttl.tensor.DataType.BFLOAT16],
+        [ttl.tensor.Layout.TILE],
+        ["SYSTEM_MEMORY"],
+        ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
+        4931206,
+        "",
+    ),
+    (
+        (6, 2, 224, 192),
+        [ttl.tensor.DataType.BFLOAT16],
+        [ttl.tensor.Layout.ROW_MAJOR],
+        ["SYSTEM_MEMORY"],
+        ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
+        13482735,
+        "",
+    ),
     (
         (4, 4, 96, 32),
         [ttl.tensor.DataType.BFLOAT16],

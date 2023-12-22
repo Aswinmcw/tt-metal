@@ -50,7 +50,18 @@ def run_sum_2_test(input_shape, dtype, dlayout, in_mem_config, out_mem_config, d
     assert success
 
 
+# 'input_mem_config': [None], 'output_mem_config': tt::tt_metal::MemoryConfig(memory_layout=TensorMemoryLayout::INTERLEAVED,buffer_type=BufferType::DRAM)}",79106,"(('TT_METAL_SLOW_DISPATCH_MODE', ''),)",error,Unexpected index,fail
+
 test_sweep_args = [
+    (
+        (6, 7, 82, 2),
+        [ttl.tensor.DataType.BFLOAT16],
+        [ttl.tensor.Layout.ROW_MAJOR],
+        ["SYSTEM_MEMORY"],
+        ttl.tensor.MemoryConfig(ttl.tensor.TensorMemoryLayout.INTERLEAVED, ttl.tensor.BufferType.DRAM),
+        79106,
+        "",
+    ),
     (
         (4, 4, 96, 32),
         [ttl.tensor.DataType.BFLOAT16],
