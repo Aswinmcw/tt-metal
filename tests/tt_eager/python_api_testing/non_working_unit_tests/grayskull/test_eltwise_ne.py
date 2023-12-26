@@ -218,7 +218,7 @@ test_sweep_args = [
         15118389,
     ),
     (
-        (4, 22, 303, 424),
+        (4, 15, 303, 424),
         ttl.tensor.DataType.BFLOAT16,
         ttl.tensor.DataType.BFLOAT16,
         ttl.tensor.Layout.ROW_MAJOR,
