@@ -4,7 +4,7 @@
 
 import io
 import pathlib
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, List
 
 import tt_lib as ttl
 
@@ -35,89 +35,17 @@ TILE_LAYOUT = Layout.TILE
 StorageType = ttl.tensor.StorageType
 DEVICE_STORAGE_TYPE = StorageType.DEVICE
 
-StorageType = ttl.tensor.StorageType
-DEVICE_STORAGE_TYPE = StorageType.DEVICE
-
 
 TILE_SIZE = 32
 
-
-class Shape:
-    __slots__ = ["_value"]
-
-    def __init__(self: "Shape", value: ttl.tensor.Shape):
-        if not isinstance(value, ttl.tensor.Shape):
-            raise TypeError(f"Expected ttl.tensor.Shape, got {type(value)}")
-        self._value = value
-
-    @classmethod
-    def from_tuple(self: "Shape", shape: Tuple[int], full_shape: Optional[Tuple[int]] = None):
-        value = ttl.tensor.Shape(shape, full_shape)
-        return Shape(value)
-
-    @property
-    def rank(self: "Shape") -> int:
-        return len(self._value)
-
-    def __iter__(self: "Shape"):
-        return iter(self._value.without_padding())
-
-    def __getitem__(self: "Shape", index):
-        shape = self._value.without_padding()
-        return shape[index]
-
-    def padded(self: "Shape") -> "Shape":
-        return Shape.from_tuple(tuple(self._value))
-
-    def __len__(self: "Shape") -> int:
-        return self.rank
-
-    def __repr__(self: "Shape") -> str:
-        file = io.StringIO()
-        file.write("ttnn.Shape([")
-        for dim in range(self.rank - 1):
-            padding = self.padded()[dim] - self[dim]
-            if padding == 0:
-                file.write(f"{self[dim]}, ")
-            else:
-                file.write(f"{self[dim]} + {padding}, ")
-
-        padding = self.padded()[self.rank - 1] - self[self.rank - 1]
-        if padding == 0:
-            file.write(f"{self[self.rank - 1]}")
-        else:
-            file.write(f"{self[self.rank - 1]} + {padding}")
-        file.write("])")
-        return file.getvalue()
-
-    def __eq__(self: "Shape", other: "Shape") -> bool:
-        if isinstance(other, Shape):
-            return self._value == other._value
-        elif isinstance(other, (tuple, list)):
-            return tuple(self) == tuple(other)
-        raise RuntimeError(f"Cannot compare Shape with {type(other)}")
+Shape = ttl.ttnn.tensor.Shape
 
 
-class Tensor:
-    def __init__(self: "Tensor", ttl_tensor: ttl.tensor.Tensor):
-        self._tensor: ttl.tensor.Tensor = ttl_tensor
-
-    @property
-    def shape(self: "Tensor") -> tuple:
-        return Shape(self._tensor.shape())
-
-    @property
-    def dtype(self: "Tensor") -> DataType:
-        return self._tensor.dtype()
-
-    @property
-    def layout(self: "Tensor") -> DataType:
-        return self._tensor.layout()
-
+class Tensor(ttl.ttnn.tensor.Tensor):
     @property
     def device(self: "Tensor") -> DataType:
         if has_storage_type_of(self, DEVICE_STORAGE_TYPE):
-            return self._tensor.device()
+            return self.value.device()
         else:
             raise RuntimeError("Tensor is not on device!")
 
@@ -148,18 +76,15 @@ class Tensor:
             tensor = from_torch(tensor, dtype=self.dtype)
         return tensor
 
-    def __repr__(self: "Tensor") -> str:
-        return str(self._tensor)
-
     def is_contiguous(self: "Shape") -> bool:
         if self.layout == ROW_MAJOR_LAYOUT:
-            return self._tensor.shape() == self._tensor.shape_without_padding()
+            return self.value.shape() == self.value.shape_without_padding()
         else:
             return False
 
 
 def has_storage_type_of(tensor: Tensor, storage_type) -> bool:
-    return tensor._tensor.storage_type() == storage_type
+    return tensor.value.storage_type() == storage_type
 
 
 @decorate_operation()
@@ -192,17 +117,15 @@ def from_torch(
 
 @decorate_operation()
 def to_torch(tensor: Tensor) -> "torch.Tensor":
-    def impl(tensor):
-        ttl_tensor = tensor._tensor
-
+    def impl(ttl_tensor):
         if ttl_tensor.storage_type() == DEVICE_STORAGE_TYPE:
             raise RuntimeError("ttnn.Tensor cannot be on device when converting to torch!")
+        return ttl_tensor.to_torch()
 
-        return ttl_tensor.to_torch().clone()  # TODO(arakhmati): remove clone
+    ttl_tensor = tensor.value
+    tensor = Tensor(ttl_tensor.reshape(tensor.shape.padded().value))
 
-    tensor._tensor = tensor._tensor.reshape(tensor.shape.padded()._value)
-
-    return ttl.tensor.decorate_external_operation(impl, function_name="ttnn.to_torch")(tensor)
+    return ttl.tensor.decorate_external_operation(impl, function_name="ttnn.to_torch")(ttl_tensor)
 
 
 @decorate_operation()
@@ -228,7 +151,7 @@ def to_device(tensor, device, *, memory_config: MemoryConfig = DRAM_MEMORY_CONFI
     """
 
     def impl(tensor, device, *, memory_config):
-        ttl_tensor = tensor._tensor
+        ttl_tensor = tensor.value
         return Tensor(ttl_tensor.to(device, memory_config))
 
     return ttl.tensor.decorate_external_operation(impl, function_name="ttnn.to_device")(
@@ -256,7 +179,7 @@ def from_device(tensor):
     """
 
     def impl(tensor):
-        ttl_tensor = tensor._tensor
+        ttl_tensor = tensor.value
         return Tensor(ttl_tensor.cpu())
 
     return ttl.tensor.decorate_external_operation(impl, function_name="ttnn.from_device")(tensor)
@@ -281,7 +204,7 @@ def to_layout(tensor, layout: Layout):
         >>> print(tensor[0,0,:3])
         Tensor([ 1.42188, -1.25, -0.398438], dtype=bfloat16 )
     """
-    ttl_tensor = tensor._tensor
+    ttl_tensor = tensor.value
     if ttl_tensor.layout() == layout:
         return tensor
     elif has_storage_type_of(tensor, DEVICE_STORAGE_TYPE):
@@ -319,7 +242,7 @@ def deallocate(tensor: Tensor) -> None:
     """
 
     def impl(tensor):
-        tensor._tensor.deallocate(force=True)
+        tensor.value.deallocate(force=True)
 
     ttl.tensor.decorate_external_operation(impl, function_name="ttnn.deallocate")(tensor)
 
@@ -335,7 +258,7 @@ def _torch_identity(input_tensor):
 
 @decorate_operation(torch_function=_torch_identity)
 def reallocate(input_tensor: Tensor) -> Tensor:
-    ttl_input_tensor = input_tensor._tensor
+    ttl_input_tensor = input_tensor.value
     ttl_output_tensor = ttl.tensor.move(ttl_input_tensor)
     return Tensor(ttl_output_tensor)
 
@@ -351,7 +274,7 @@ def load_tensor(file_name: Union[str, pathlib.Path]) -> Tensor:
 @decorate_operation()
 def dump_tensor(file_name: Union[str, pathlib.Path], tensor: Tensor) -> None:
     def impl(file_name, tensor):
-        ttl_tensor = tensor._tensor
+        ttl_tensor = tensor.value
         ttl.tensor.dump_tensor(str(file_name), ttl_tensor)
 
     ttl.tensor.decorate_external_operation(impl, function_name="ttnn.dump_tensor")(file_name, tensor)

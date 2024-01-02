@@ -19,6 +19,7 @@ tt::DataFormat datatype_to_dataformat_converter(tt::tt_metal::DataType datatype)
         case tt::tt_metal::DataType::BFLOAT8_B: return tt::DataFormat::Bfp8_b;
         case tt::tt_metal::DataType::FLOAT32: return tt::DataFormat::Float32;
         case tt::tt_metal::DataType::UINT32: return tt::DataFormat::UInt32;
+        case tt::tt_metal::DataType::UINT16: return tt::DataFormat::UInt16;
         default:
             TT_ASSERT(false, "Unsupported DataType");
             return tt::DataFormat::Float16_b;
@@ -69,10 +70,6 @@ Shape::Shape(const std::initializer_list<uint32_t> dimensions) :
     rank_(dimensions.size()), dimensions_{}, padding_(dimensions.size()) {
     std::copy(std::begin(dimensions), std::end(dimensions), std::begin(this->dimensions_));
 }
-Shape::Shape(const std::array<uint32_t, 4>& dimensions) :
-    rank_(dimensions.size()), dimensions_{}, padding_(dimensions.size()) {
-    std::copy(std::begin(dimensions), std::end(dimensions), std::begin(this->dimensions_));
-}
 Shape::Shape(const std::vector<uint32_t>& dimensions) :
     rank_(dimensions.size()), dimensions_{}, padding_(dimensions.size()) {
     std::copy(std::begin(dimensions), std::end(dimensions), std::begin(this->dimensions_));
@@ -88,6 +85,7 @@ Shape::Shape(const std::vector<uint32_t>& dimensions, const Padding& padding) :
     TT_ASSERT(this->padding_.rank_ == this->rank_);
     std::copy(std::begin(dimensions), std::end(dimensions), std::begin(this->dimensions_));
 }
+
 Shape::Shape(const Shape& other, const Padding& padding) :
     dimensions_(other.dimensions_), rank_(other.rank_), padding_(padding) {
     TT_ASSERT(this->padding_.rank_ == this->rank_);

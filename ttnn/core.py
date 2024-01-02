@@ -91,7 +91,7 @@ def _reshape_to_4D(tensor):
     full_shape = tuple(tensor.shape.padded())
     shape = (1,) * num_missing_dims + shape
     full_shape = (1,) * num_missing_dims + full_shape
-    return reshape(tensor, shape=Shape.from_tuple(shape, full_shape))
+    return reshape(tensor, shape=Shape(shape, full_shape))
 
 
 # Math Operations
@@ -202,17 +202,17 @@ def matmul(
         padded_output_shape_list.append(input_shape_a.padded()[index])
     output_shape_list.append(input_shape_b[-1])
     padded_output_shape_list.append(input_shape_b.padded()[-1])
-    output_shape = Shape.from_tuple(output_shape_list, padded_output_shape_list)
+    output_shape = Shape(output_shape_list, padded_output_shape_list)
 
     if not isinstance(input_tensor_a, Tensor):
         raise RuntimeError("Expected first argument to be a ttnn.Tensor")
     if not isinstance(input_tensor_b, Tensor):
         raise RuntimeError("Expected second argument to be a ttnn.Tensor")
 
-    if input_tensor_a._tensor.storage_type() != ttl.tensor.StorageType.DEVICE:
+    if input_tensor_a.value.storage_type() != ttl.tensor.StorageType.DEVICE:
         raise RuntimeError("input_tensor_a must be on device!")
 
-    if input_tensor_b._tensor.storage_type() != ttl.tensor.StorageType.DEVICE:
+    if input_tensor_b.value.storage_type() != ttl.tensor.StorageType.DEVICE:
         raise RuntimeError("input_tensor_b must be on device!")
 
     # The idea is to make the shapes "possibly" broadcastable.
@@ -244,15 +244,11 @@ def matmul(
 
     input_tensor_a = reshape(
         input_tensor_a,
-        Shape.from_tuple(
-            tuple(batch_shape_a + [height_a, width_a]), tuple(batch_shape_a + [padded_height_a, padded_width_a])
-        ),
+        Shape(tuple(batch_shape_a + [height_a, width_a]), tuple(batch_shape_a + [padded_height_a, padded_width_a])),
     )
     input_tensor_b = reshape(
         input_tensor_b,
-        Shape.from_tuple(
-            tuple(batch_shape_b + [height_b, width_b]), tuple(batch_shape_b + [padded_height_b, padded_width_b])
-        ),
+        Shape(tuple(batch_shape_b + [height_b, width_b]), tuple(batch_shape_b + [padded_height_b, padded_width_b])),
     )
 
     input_tensor_a = _reshape_to_4D(input_tensor_a)
@@ -316,8 +312,8 @@ def matmul(
         #     f"is_batched={is_batched}, per_core_M={per_core_M}, per_core_N={per_core_N}, in0_block_w={in0_block_w}, out_subblock_h={out_subblock_h}, out_subblock_w={out_subblock_w}"
         # )
 
-        ttl_input_tensor_a = input_tensor_a._tensor
-        ttl_input_tensor_b = input_tensor_b._tensor
+        ttl_input_tensor_a = input_tensor_a.value
+        ttl_input_tensor_b = input_tensor_b.value
         if is_batched:
             ttl_output_tensor = ttl.operations.primary.matmul(
                 ttl_input_tensor_a,
@@ -356,8 +352,8 @@ def matmul(
     elif height_a == 1 and width_b == 1:  # dot product
         input_tensor_b = reshape(input_tensor_b, tuple(input_tensor_b.shape[:-2] + [width_b, height_b]))
 
-        ttl_input_tensor_a = input_tensor_a._tensor
-        ttl_input_tensor_b = input_tensor_b._tensor
+        ttl_input_tensor_a = input_tensor_a.value
+        ttl_input_tensor_b = input_tensor_b.value
 
         # return a dot product
         ttl_output_tensor = ttl.tensor.bcast(
@@ -381,14 +377,14 @@ def matmul(
         if width_a != height_b:
             raise RuntimeError("The width of the first tensor must be equal to the height of the second tensor")
         if all(x == 1 for x in batch_shape_b):
-            ttl_input_tensor_a = input_tensor_a._tensor
-            ttl_input_tensor_b = input_tensor_b._tensor
+            ttl_input_tensor_a = input_tensor_a.value
+            ttl_input_tensor_b = input_tensor_b.value
             output_tensor = Tensor(
                 ttl.tensor.matmul(ttl_input_tensor_a, ttl_input_tensor_b, output_mem_config=memory_config)
             )
         else:
-            ttl_input_tensor_a = input_tensor_a._tensor
-            ttl_input_tensor_b = input_tensor_b._tensor
+            ttl_input_tensor_a = input_tensor_a.value
+            ttl_input_tensor_b = input_tensor_b.value
             output_tensor = Tensor(
                 ttl.tensor.bmm(ttl_input_tensor_a, ttl_input_tensor_b, output_mem_config=memory_config)
             )
@@ -475,17 +471,17 @@ def linear(
         padded_output_shape_list.append(input_shape_a.padded()[index])
     output_shape_list.append(input_shape_b[-1])
     padded_output_shape_list.append(input_shape_b.padded()[-1])
-    output_shape = Shape.from_tuple(output_shape_list, padded_output_shape_list)
+    output_shape = Shape(output_shape_list, padded_output_shape_list)
 
     if not isinstance(input_tensor_a, Tensor):
         raise RuntimeError("Expected first argument to be a ttnn.Tensor")
     if not isinstance(input_tensor_b, Tensor):
         raise RuntimeError("Expected second argument to be a ttnn.Tensor")
 
-    if input_tensor_a._tensor.storage_type() != ttl.tensor.StorageType.DEVICE:
+    if input_tensor_a.value.storage_type() != ttl.tensor.StorageType.DEVICE:
         raise RuntimeError("input_tensor_a must be on device!")
 
-    if input_tensor_b._tensor.storage_type() != ttl.tensor.StorageType.DEVICE:
+    if input_tensor_b.value.storage_type() != ttl.tensor.StorageType.DEVICE:
         raise RuntimeError("input_tensor_b must be on device!")
 
     # The idea is to make the shapes "possibly" broadcastable.
@@ -517,15 +513,11 @@ def linear(
 
     input_tensor_a = reshape(
         input_tensor_a,
-        Shape.from_tuple(
-            tuple(batch_shape_a + [height_a, width_a]), tuple(batch_shape_a + [padded_height_a, padded_width_a])
-        ),
+        Shape(tuple(batch_shape_a + [height_a, width_a]), tuple(batch_shape_a + [padded_height_a, padded_width_a])),
     )
     input_tensor_b = reshape(
         input_tensor_b,
-        Shape.from_tuple(
-            tuple(batch_shape_b + [height_b, width_b]), tuple(batch_shape_b + [padded_height_b, padded_width_b])
-        ),
+        Shape(tuple(batch_shape_b + [height_b, width_b]), tuple(batch_shape_b + [padded_height_b, padded_width_b])),
     )
 
     input_tensor_a = _reshape_to_4D(input_tensor_a)
@@ -541,8 +533,8 @@ def linear(
     k_size = width_a
     n_size = width_b
 
-    ttl_input_tensor_a = input_tensor_a._tensor
-    ttl_input_tensor_b = input_tensor_b._tensor
+    ttl_input_tensor_a = input_tensor_a.value
+    ttl_input_tensor_b = input_tensor_b.value
 
     if core_grid != None:
         if m_size % TILE_SIZE != 0 or k_size % TILE_SIZE != 0:
@@ -614,7 +606,7 @@ def linear(
                 output_dtype=dtype,
             )
         else:
-            ttl_bias = bias._tensor if bias is not None else None
+            ttl_bias = bias.value if bias is not None else None
             if activation == "gelu":
                 fused_activation = (ttl.tensor.FusibleActivation.GELU, True)
             elif activation == "relu":
@@ -648,7 +640,7 @@ def linear(
         if activation is not None:
             raise RuntimeError("activation must be None")
 
-        ttl_bias = bias._tensor if bias is not None else None
+        ttl_bias = bias.value if bias is not None else None
         ttl_output_tensor = ttl.operations.primary.matmul(
             ttl_input_tensor_a,
             ttl_input_tensor_b,
@@ -731,7 +723,7 @@ def add(
 
     original_shape = input_tensor_a.shape
     input_tensor_a = _reshape_to_4D(input_tensor_a)
-    ttl_input_tensor_a = input_tensor_a._tensor
+    ttl_input_tensor_a = input_tensor_a.value
 
     if not has_storage_type_of(input_tensor_a, ttl.tensor.StorageType.DEVICE):
         raise RuntimeError("input_tensor_a must be on device!")
@@ -755,13 +747,13 @@ def add(
             *_, height_b, width_b = input_shape_b
 
         input_tensor_b = _reshape_to_4D(input_tensor_b)
-        ttl_input_tensor_b = input_tensor_b._tensor
+        ttl_input_tensor_b = input_tensor_b.value
         if ttl_input_tensor_b.storage_type() != ttl.tensor.StorageType.DEVICE:
             raise RuntimeError("input_tensor_a must be on device!")
     else:
         raise TypeError("Expected second argument to be a ttnn.Tensor or a scalar")
 
-    ttl_input_tensor_b = input_tensor_b._tensor
+    ttl_input_tensor_b = input_tensor_b.value
     if alpha != 1:
         ttl_input_tensor_b = ttl.tensor.mul_unary(
             ttl_input_tensor_b,
@@ -869,7 +861,7 @@ def sub(
 
     original_shape = tuple(input_tensor_a.shape)
     input_tensor_a = _reshape_to_4D(input_tensor_a)
-    ttl_input_tensor_a = input_tensor_a._tensor
+    ttl_input_tensor_a = input_tensor_a.value
 
     if ttl_input_tensor_a.storage_type() != ttl.tensor.StorageType.DEVICE:
         raise RuntimeError("input_tensor_a must be on device!")
@@ -893,13 +885,13 @@ def sub(
             *_, height_b, width_b = input_shape_b
 
         input_tensor_b = _reshape_to_4D(input_tensor_b)
-        ttl_input_tensor_b = input_tensor_b._tensor
+        ttl_input_tensor_b = input_tensor_b.value
         if ttl_input_tensor_b.storage_type() != ttl.tensor.StorageType.DEVICE:
             raise RuntimeError("input_tensor_a must be on device!")
     else:
         raise TypeError("Expected second argument to be a ttnn.Tensor or a scalar")
 
-    ttl_input_tensor_b = input_tensor_b._tensor
+    ttl_input_tensor_b = input_tensor_b.value
 
     if alpha != 1:
         ttl_input_tensor_b = ttl.tensor.mul_unary(
@@ -998,12 +990,12 @@ def mul(input_tensor_a: Tensor, input_tensor_b: Tensor, memory_config: MemoryCon
 
     original_shape = input_tensor_a.shape
     input_tensor_a = _reshape_to_4D(input_tensor_a)
-    ttl_input_tensor_a = input_tensor_a._tensor
+    ttl_input_tensor_a = input_tensor_a.value
 
     if not isinstance(input_tensor_a, Tensor):
         raise TypeError("Expected first argument to be a ttnn.Tensor")
 
-    ttl_input_tensor_a = input_tensor_a._tensor
+    ttl_input_tensor_a = input_tensor_a.value
 
     if not has_storage_type_of(input_tensor_a, ttl.tensor.StorageType.DEVICE):
         raise RuntimeError("input_tensor_a must be on device!")
@@ -1031,7 +1023,7 @@ def mul(input_tensor_a: Tensor, input_tensor_b: Tensor, memory_config: MemoryCon
         *_, height_b, width_b = input_shape_b
 
     input_tensor_b = _reshape_to_4D(input_tensor_b)
-    ttl_input_tensor_b = input_tensor_b._tensor
+    ttl_input_tensor_b = input_tensor_b.value
 
     if height_b == 1 and width_b == 1:
         return reshape(
@@ -1137,7 +1129,7 @@ def reshape(input_tensor: Tensor, shape: Union[Shape, Tuple[int, ...]]) -> Tenso
             shape = list(shape)
             shape[index_of_negative_1] = volume // (-new_volume)
             shape = tuple(shape)
-        shape = Shape.from_tuple(shape)
+        shape = Shape(shape)
 
     if not isinstance(shape, Shape):
         raise RuntimeError("Shape must be of type Shape")
@@ -1146,14 +1138,17 @@ def reshape(input_tensor: Tensor, shape: Union[Shape, Tuple[int, ...]]) -> Tenso
         return input_tensor
 
     def ttnn_reshape(tensor, shape):
-        ttl_input_tensor = tensor._tensor
-        return Tensor(ttl_input_tensor.reshape(shape._value))
+        ttl_input_tensor = tensor.value
+        return Tensor(ttl_input_tensor.reshape(shape.value))
 
     ttnn_reshape = ttl.tensor.decorate_external_operation(ttnn_reshape, function_name="ttnn.reshape")
 
     if input_tensor.is_contiguous():
-        # Page size depends on the width, so only modify the shape if the width is the same
-        if input_tensor.shape[-1] == shape[-1]:
+        if has_storage_type_of(input_tensor, ttl.tensor.StorageType.DEVICE):
+            # Page size depends on the width, so only modify the shape if the width is the same
+            if input_tensor.shape[-1] == shape[-1]:
+                return ttnn_reshape(input_tensor, shape)
+        else:
             return ttnn_reshape(input_tensor, shape)
 
     if input_tensor.layout == TILE_LAYOUT:
@@ -1166,7 +1161,7 @@ def reshape(input_tensor: Tensor, shape: Union[Shape, Tuple[int, ...]]) -> Tenso
         and len(input_tensor.shape) == 4
         and len(shape) == 4
     ):
-        ttl_input_tensor = input_tensor._tensor
+        ttl_input_tensor = input_tensor.value
         w, z, y, x = shape
         ttl_output_tensor = ttl.tensor.reshape(ttl_input_tensor, w, z, y, x)
         output_tensor = Tensor(ttl_output_tensor)
@@ -1178,7 +1173,7 @@ def reshape(input_tensor: Tensor, shape: Union[Shape, Tuple[int, ...]]) -> Tenso
             return tensor.reshape(tuple(shape.padded())).contiguous().clone()
 
         if has_storage_type_of(input_tensor, ttl.tensor.StorageType.DEVICE):
-            ttl_input_tensor = input_tensor._tensor
+            ttl_input_tensor = input_tensor.value
             device = ttl_input_tensor.device()
             tensor = to_layout(input_tensor, ROW_MAJOR_LAYOUT)
             tensor = from_device(tensor)
@@ -1234,7 +1229,7 @@ def permute(input_tensor: Tensor, order: Tuple[int, ...]) -> Tensor:
     if not has_storage_type_of(input_tensor, ttl.tensor.StorageType.DEVICE):
         RuntimeError("input_tensor must be on device!")
 
-    ttl_input_tensor = input_tensor._tensor
+    ttl_input_tensor = input_tensor.value
 
     if len(input_tensor.shape) != len(order):
         raise RuntimeError(
@@ -1247,7 +1242,7 @@ def permute(input_tensor: Tensor, order: Tuple[int, ...]) -> Tensor:
         original_shape = tuple(input_tensor.shape)
         desired_shape = tuple([original_shape[i] for i in order])
         input_tensor = _reshape_to_4D(input_tensor)
-        ttl_input_tensor = input_tensor._tensor
+        ttl_input_tensor = input_tensor.value
         new_order = order
         while len(new_order) < 4:
             new_order = (0,) + tuple(x + 1 for x in new_order)
@@ -1330,7 +1325,7 @@ def embedding(
 
     tilized = layout == TILE_LAYOUT
     embeddings = Tensor(
-        ttl.tensor.embeddings(input_tensor._tensor, weight._tensor, tilized, output_mem_config=memory_config)
+        ttl.tensor.embeddings(input_tensor.value, weight.value, tilized, output_mem_config=memory_config)
     )
     embeddings = reshape(embeddings, shape=(batch_size, sentence_size, hidden_embedding_dim))
 
@@ -1374,7 +1369,7 @@ def softmax(input_tensor: Tensor, dim: int, memory_config: MemoryConfig = DRAM_M
 
     input_tensor = _reshape_to_4D(input_tensor)
 
-    ttl_input_tensor = input_tensor._tensor
+    ttl_input_tensor = input_tensor.value
     if dim == rank - 1:
         ttl_output_tensor = ttl.tensor.softmax(ttl_input_tensor, output_mem_config=memory_config)
     else:
@@ -1443,10 +1438,10 @@ def layer_norm(
     if bias is not None:
         bias = _reshape_to_4D(bias)
 
-    ttl_input_tensor = input_tensor._tensor
-    residual_input_tensor = residual_input_tensor._tensor if residual_input_tensor is not None else None
-    ttl_weight = weight._tensor if weight is not None else None
-    ttl_bias = bias._tensor if bias is not None else None
+    ttl_input_tensor = input_tensor.value
+    residual_input_tensor = residual_input_tensor.value if residual_input_tensor is not None else None
+    ttl_weight = weight.value if weight is not None else None
+    ttl_bias = bias.value if bias is not None else None
 
     if residual_input_tensor is not None:
         output_tensor = ttl.tensor.add_layernorm(
@@ -1508,7 +1503,7 @@ def mean(input_tensor: Tensor, dim: Union[int, Tuple[int]], keepdim: bool = Fals
     padded_output_shape = tuple(padded_output_shape)
 
     input_tensor = _reshape_to_4D(input_tensor)
-    ttl_input_tensor = input_tensor._tensor
+    ttl_input_tensor = input_tensor.value
     ttl_output_tensor = ttl.tensor.reduce(
         ttl_input_tensor, ttl.tensor.ReduceOpMath.SUM, reduce_op_dim, 1 / input_shape[-1]
     )
@@ -1517,7 +1512,7 @@ def mean(input_tensor: Tensor, dim: Union[int, Tuple[int]], keepdim: bool = Fals
     )
 
     output_tensor = Tensor(ttl_output_tensor)
-    output_tensor = reshape(output_tensor, Shape.from_tuple(output_shape, padded_output_shape))
+    output_tensor = reshape(output_tensor, Shape(output_shape, padded_output_shape))
 
     return output_tensor
 
