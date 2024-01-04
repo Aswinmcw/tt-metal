@@ -25,11 +25,6 @@ void Unpad::validate(const std::vector<Tensor> &input_tensors) const {
     TT_FATAL(input_tensor_a.buffer() != nullptr , "Operands to unpad need to be allocated in buffers on device!");
     TT_FATAL(input_tensor_a.layout() == Layout::TILE || input_tensor_a.layout() == Layout::ROW_MAJOR);
 
-    TT_FATAL(
-        (this->output_tensor_start[0] == 0 && this->output_tensor_start[1] == 0 && output_tensor_start[2] == 0 && output_tensor_start[3] == 0),
-        "On device unpadding only supports unpadding at end of dims"
-    );
-
     for (uint32_t i = 0; i < input_tensor_a.shape().rank(); i++) {
         TT_FATAL(this->output_tensor_start[i] < input_tensor_a.shape()[i]);
         TT_FATAL(this->output_tensor_end[i] < input_tensor_a.shape()[i]);
