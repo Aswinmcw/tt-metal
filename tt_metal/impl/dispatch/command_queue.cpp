@@ -15,10 +15,76 @@
 #include "dev_msgs.h"
 #include <algorithm> // for copy() and assign()
 #include <iterator> // for back_inserter
+#include "tt_metal/third_party/tracy/public/tracy/Tracy.hpp"
 
 namespace tt::tt_metal {
 
-#include "tt_metal/third_party/tracy/public/tracy/Tracy.hpp"
+class HWCommandQueue {
+   public:
+    HWCommandQueue(Device* device, uint32_t command_queue_channel);
+
+    ~HWCommandQueue();
+
+    map<uint64_t, unique_ptr<Buffer>>& program_to_buffer(const chip_id_t chip_id) {
+        static map<chip_id_t, map<uint64_t, unique_ptr<Buffer>>> chip_to_program_to_buffer;
+        if (chip_to_program_to_buffer.count(chip_id)) {
+            return chip_to_program_to_buffer[chip_id];
+        }
+        map<uint64_t, unique_ptr<Buffer>> dummy;
+        chip_to_program_to_buffer.emplace(chip_id, std::move(dummy));
+        return chip_to_program_to_buffer[chip_id];
+    }
+
+    map<uint64_t, ProgramMap>& program_to_dev_map(const chip_id_t chip_id) {
+        static map<chip_id_t, map<uint64_t, ProgramMap>> chip_to_program_to_dev_map;
+        if (chip_to_program_to_dev_map.count(chip_id)) {
+            return chip_to_program_to_dev_map[chip_id];
+        }
+        map<uint64_t, ProgramMap> dummy;
+        chip_to_program_to_dev_map.emplace(chip_id, std::move(dummy));
+        return chip_to_program_to_dev_map[chip_id];
+    };
+
+    void enqueue_command(Command& command, bool blocking);
+
+    void enqueue_read_buffer(Buffer& buffer, void* dst, bool blocking);
+
+    void enqueue_write_buffer(Buffer& buffer, const void* src, bool blocking);
+
+    void enqueue_program(Program& program, bool blocking);
+
+    void finish();
+
+    void wrap(DeviceCommand::WrapRegion wrap_region = DeviceCommand::WrapRegion::ISSUE, bool blocking = false);
+
+   private:
+    CoreCoord dispatch_core;
+    uint32_t command_queue_channel;
+    uint32_t command_queue_channel_size;
+    SystemMemoryManager& manager;
+    Device* device;
+
+};
+
+
+namespace detail{
+    inline HWCommandQueue &GetHWCommandQueue(Device *device)
+    {
+        detail::DispatchStateCheck(true);
+        // For now there is only one SW HWCommandQueue per device
+        static std::vector<std::unique_ptr<HWCommandQueue>> command_queues( GetNumAvailableDevices() );
+        chip_id_t id = device->id();
+        TT_FATAL(id < command_queues.size(), "Invalid device {} detected", id);
+        TT_FATAL(device->is_initialized(), "Cannot access command queue for closed device {}", id);
+        static std::mutex cq_creation_mutex;
+        {
+            std::lock_guard<std::mutex> lock(cq_creation_mutex);
+            command_queues[device->id()] = std::make_unique<HWCommandQueue>(device, 0);
+        }
+        return *(command_queues[id]);
+    }
+}
+
 
 uint32_t get_noc_multicast_encoding(const CoreCoord& top_left, const CoreCoord& bottom_right) {
     return NOC_MULTICAST_ENCODING(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
@@ -759,8 +825,8 @@ void EnqueueWrapCommand::process() {
 
 EnqueueCommandType EnqueueWrapCommand::type() { return this->type_; }
 
-// CommandQueue section
-CommandQueue::CommandQueue(Device* device, uint32_t command_queue_channel): manager(*device->sysmem_manager) {
+// HWCommandQueue section
+HWCommandQueue::HWCommandQueue(Device* device, uint32_t command_queue_channel): manager(*device->sysmem_manager) {
     this->device = device;
     this->command_queue_channel = command_queue_channel;
 
@@ -780,9 +846,9 @@ CommandQueue::CommandQueue(Device* device, uint32_t command_queue_channel): mana
     }
 }
 
-CommandQueue::~CommandQueue() {}
+HWCommandQueue::~HWCommandQueue() {}
 
-void CommandQueue::enqueue_command(Command& command, bool blocking) {
+void HWCommandQueue::enqueue_command(Command& command, bool blocking) {
     // For the time-being, doing the actual work of enqueing in
     // the main thread.
     // TODO(agrebenisan): Perform the following in a worker thread
@@ -829,8 +895,8 @@ void convert_interleaved_to_sharded_on_host(const void * host, const int num_pag
 }
 
 // Read buffer command is enqueued in the issue region and device writes requested buffer data into the completion region
-void CommandQueue::enqueue_read_buffer(Buffer& buffer, void* dst, bool blocking) {
-    ZoneScopedN("CommandQueue_read_buffer");
+void HWCommandQueue::enqueue_read_buffer(Buffer& buffer, void* dst, bool blocking) {
+    ZoneScopedN("HWCommandQueue_read_buffer");
     TT_FATAL(blocking, "EnqueueReadBuffer only has support for blocking mode currently");
 
     chip_id_t mmio_device_id = tt::Cluster::instance().get_associated_mmio_device(this->device->id());
@@ -889,9 +955,9 @@ void CommandQueue::enqueue_read_buffer(Buffer& buffer, void* dst, bool blocking)
     }
 }
 
-void CommandQueue::enqueue_write_buffer(Buffer& buffer, const void* src, bool blocking) {
+void HWCommandQueue::enqueue_write_buffer(Buffer& buffer, const void* src, bool blocking) {
 
-    ZoneScopedN("CommandQueue_write_buffer");
+    ZoneScopedN("HWCommandQueue_write_buffer");
     TT_FATAL(not blocking, "EnqueueWriteBuffer only has support for non-blocking mode currently");
 
     // TODO(agrebenisan): Fix these asserts after implementing multi-core CQ
@@ -932,8 +998,8 @@ void CommandQueue::enqueue_write_buffer(Buffer& buffer, const void* src, bool bl
     }
 }
 
-void CommandQueue::enqueue_program(Program& program, bool blocking) {
-    ZoneScopedN("CommandQueue_enqueue_program");
+void HWCommandQueue::enqueue_program(Program& program, bool blocking) {
+    ZoneScopedN("HWCommandQueue_enqueue_program");
     TT_FATAL(not blocking, "EnqueueProgram only has support for non-blocking mode currently");
 
     // Need to relay the program into DRAM if this is the first time
@@ -1002,8 +1068,8 @@ void CommandQueue::enqueue_program(Program& program, bool blocking) {
     this->enqueue_command(command, blocking);
 }
 
-void CommandQueue::finish() {
-    ZoneScopedN("CommandQueue_finish");
+void HWCommandQueue::finish() {
+    ZoneScopedN("HWCommandQueue_finish");
     if ((this->manager.get_issue_queue_write_ptr(this->command_queue_channel)) + DeviceCommand::NUM_BYTES_IN_DEVICE_COMMAND >=
         this->manager.get_issue_queue_limit(this->command_queue_channel)) {
         this->wrap();
@@ -1033,8 +1099,8 @@ void CommandQueue::finish() {
     tt::Cluster::instance().write_sysmem(&finish, 4, HOST_CQ_FINISH_PTR + finish_addr_offset, mmio_device_id, channel);
 }
 
-void CommandQueue::wrap(DeviceCommand::WrapRegion wrap_region, bool blocking) {
-    ZoneScopedN("CommandQueue_wrap");
+void HWCommandQueue::wrap(DeviceCommand::WrapRegion wrap_region, bool blocking) {
+    ZoneScopedN("HWCommandQueue_wrap");
     tt::log_debug(tt::LogDispatch, "EnqueueWrap for channel {}", this->command_queue_channel);
     EnqueueWrapCommand command(this->command_queue_channel, this->device, this->manager, wrap_region);
     this->enqueue_command(command, blocking);
@@ -1048,47 +1114,76 @@ void EnqueueReadBuffer(CommandQueue& cq, Buffer& buffer, vector<uint32_t>& dst, 
     // Only resizing here to keep with the original implementation. Notice how in the void*
     // version of this API, I assume the user mallocs themselves
     dst.resize(buffer.page_size() * buffer.num_pages() / sizeof(uint32_t));
-    cq.enqueue_read_buffer(buffer, dst.data(), blocking);
+
+    cq.submit( [device = cq.device(), &buffer, &dst, blocking ]{
+        HWCommandQueue & hcq = detail::GetHWCommandQueue(device);
+        hcq.enqueue_read_buffer(buffer, dst.data(), blocking);
+    } );
 }
 
 void EnqueueWriteBuffer(CommandQueue& cq, Buffer& buffer, vector<uint32_t>& src, bool blocking) {
     // TODO(agrebenisan): Move to deprecated
     detail::DispatchStateCheck(true);
-    cq.enqueue_write_buffer(buffer, src.data(), blocking);
+
+    cq.submit ( [device = cq.device(), &buffer, data_ptr = src.data(), blocking ] {
+        HWCommandQueue & hcq = detail::GetHWCommandQueue(device);
+        hcq.enqueue_write_buffer(buffer, data_ptr, blocking);
+    } );
 }
 
 void EnqueueReadBuffer(CommandQueue& cq, Buffer& buffer, void* dst, bool blocking) {
     detail::DispatchStateCheck(true);
-    cq.enqueue_read_buffer(buffer, dst, blocking);
+
+    cq.submit( [device = cq.device(), &buffer, dst, blocking] {
+        HWCommandQueue & hcq = detail::GetHWCommandQueue(device);
+        hcq.enqueue_read_buffer(buffer, dst, blocking);
+    } );
 }
+
 
 void EnqueueWriteBuffer(CommandQueue& cq, Buffer& buffer, const void* src, bool blocking) {
     detail::DispatchStateCheck(true);
-    cq.enqueue_write_buffer(buffer, src, blocking);
+
+    cq.submit( [device = cq.device(), &buffer, src, blocking] {
+        HWCommandQueue & hcq = detail::GetHWCommandQueue(device);
+        hcq.enqueue_write_buffer(buffer, src, blocking);
+    } );
 }
 
 void EnqueueProgram(CommandQueue& cq, Program& program, bool blocking) {
     ZoneScoped;
-    TT_ASSERT(cq.command_queue_channel == 0, "EnqueueProgram only supported on first command queue on device for time being.");
+    TT_ASSERT(cq.command_queue_channel() == 0, "EnqueueProgram only supported on first command queue on device for time being.");
     detail::DispatchStateCheck(true);
 
-    detail::CompileProgram(cq.device, program);
+    detail::CompileProgram(cq.device(), program);
 
     program.allocate_circular_buffers();
-    detail::ValidateCircularBufferRegion(program, cq.device);
+    detail::ValidateCircularBufferRegion(program, cq.device());
 
-    cq.enqueue_program(program, blocking);
+    cq.submit( [device = cq.device(), &program, blocking] {
+        HWCommandQueue & hcq = detail::GetHWCommandQueue(device);
+        hcq.enqueue_program(program, blocking);
+    } );
 }
 
 void Finish(CommandQueue& cq) {
     detail::DispatchStateCheck(true);
-    cq.finish();
+    std::shared_future<void> f;
+    cq.submit( [device = cq.device()] {
+        HWCommandQueue & hcq = detail::GetHWCommandQueue(device);
+        hcq.finish();
+    }, f);
+    f.wait();
 }
 
-void ClearProgramCache(CommandQueue& cq) {
-    detail::DispatchStateCheck(true);
-    cq.program_to_buffer(cq.device->id()).clear();
-    cq.program_to_dev_map(cq.device->id()).clear();
+namespace detail
+{
+    void ClearProgramCache(CommandQueue& cq) {
+        detail::DispatchStateCheck(true);
+        HWCommandQueue & hcq = detail::GetHWCommandQueue( cq.device() );
+        hcq.program_to_buffer(cq.device()->id()).clear();
+        hcq.program_to_dev_map(cq.device()->id()).clear();
+    }
 }
 
 }  // namespace tt::tt_metal

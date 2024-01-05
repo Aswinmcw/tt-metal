@@ -18,6 +18,9 @@
 #include "tt_metal/common/tt_backend_api_types.hpp"
 #include "tt_metal/impl/program/program.hpp"
 #include "noc/noc_parameters.h"
+#include "third_party/taskflow/taskflow/taskflow.hpp"
+#include "common/executor.hpp"
+#include "tt_metal/host_api.hpp"
 
 namespace tt::tt_metal {
 
@@ -184,67 +187,52 @@ class EnqueueWrapCommand : public Command {
     EnqueueCommandType type();
 };
 
-// Fwd declares
-namespace detail{
-    CommandQueue &GetCommandQueue(Device *device);
-}
 
-class CommandQueue {
-   public:
-    CommandQueue(Device* device, uint32_t command_queue_channel);
+class CommandQueue
+{
+    public:
+        CommandQueue () = delete;
 
-    ~CommandQueue();
-
-   private:
-    CoreCoord dispatch_core;
-    uint32_t command_queue_channel;
-    uint32_t command_queue_channel_size;
-    SystemMemoryManager& manager;
-
-    Device* device;
-
-    map<uint64_t, unique_ptr<Buffer>>& program_to_buffer(const chip_id_t chip_id) {
-        static map<chip_id_t, map<uint64_t, unique_ptr<Buffer>>> chip_to_program_to_buffer;
-        if (chip_to_program_to_buffer.count(chip_id)) {
-            return chip_to_program_to_buffer[chip_id];
+        CommandQueue ( Device * device, uint32_t command_queue_channel) : device_(device), command_queue_channel_(command_queue_channel)
+        {
         }
-        map<uint64_t, unique_ptr<Buffer>> dummy;
-        chip_to_program_to_buffer.emplace(chip_id, std::move(dummy));
-        return chip_to_program_to_buffer[chip_id];
-    }
 
-    map<uint64_t, ProgramMap>& program_to_dev_map(const chip_id_t chip_id) {
-        static map<chip_id_t, map<uint64_t, ProgramMap>> chip_to_program_to_dev_map;
-        if (chip_to_program_to_dev_map.count(chip_id)) {
-            return chip_to_program_to_dev_map[chip_id];
+        ~CommandQueue() {}
+
+        template < class F >
+        void submit ( F && func, std::reference_wrapper< std::shared_future< void > > event ){
+            std::lock_guard<std::mutex> lk(mutex_);
+            std::tie(last_, event.get()) = last_.has_value() ? detail::GetExecutor().dependent_async ( func, last_.value()) : detail::GetExecutor().dependent_async ( func );
         }
-        map<uint64_t, ProgramMap> dummy;
-        chip_to_program_to_dev_map.emplace(chip_id, std::move(dummy));
-        return chip_to_program_to_dev_map[chip_id];
-    };
 
-    void enqueue_command(Command& command, bool blocking);
+        template < class F >
+        void submit ( F && func){
+            std::lock_guard<std::mutex> lk(mutex_);
+            last_ = last_.has_value() ? detail::GetExecutor().silent_dependent_async((func), last_.value()) : detail::GetExecutor().silent_dependent_async( func );
+        }
 
-    void enqueue_read_buffer(Buffer& buffer, void* dst, bool blocking);
+        Device* device() const {
+            return device_;
+        }
 
-    void enqueue_write_buffer(Buffer& buffer, const void* src, bool blocking);
+        uint32_t command_queue_channel() const{
+            return command_queue_channel_;
+        }
 
-    void enqueue_program(Program& program, bool blocking);
+    private:
+        std::mutex mutex_;
+        std::optional<tf::AsyncTask> last_;
+        uint32_t command_queue_channel_;
+        Device * device_;
 
-    void finish();
-
-    void wrap(DeviceCommand::WrapRegion wrap_region = DeviceCommand::WrapRegion::ISSUE, bool blocking = false);
-
-    friend void EnqueueReadBuffer(CommandQueue& cq, Buffer& buffer, vector<uint32_t>& dst, bool blocking);
-    friend void EnqueueWriteBuffer(CommandQueue& cq, Buffer& buffer, vector<uint32_t>& src, bool blocking);
-    friend void EnqueueReadBuffer(CommandQueue& cq, Buffer& buffer, void* dst, bool blocking);
-    friend void EnqueueWriteBuffer(CommandQueue& cq, Buffer& buffer, const void* src, bool blocking);
-    friend void EnqueueProgram(CommandQueue& cq, Program& program, bool blocking);
-    friend void Finish(CommandQueue& cq);
-    friend void ClearProgramCache(CommandQueue& cq);
-    friend CommandQueue &detail::GetCommandQueue(Device *device);
 };
 
+
 inline bool LAZY_COMMAND_QUEUE_MODE = false;
+
+namespace detail
+{
+    void ClearProgramCache( CommandQueue & cq);
+}
 
 } // namespace tt::tt_metal

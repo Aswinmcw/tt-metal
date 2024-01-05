@@ -23,7 +23,7 @@ enum class BufferType;
 class Buffer;
 class Program;
 class JitBuildEnv;
-class CommandQueue;
+class HWCommandQueue;
 
 using on_close_device_callback = std::function<void ()>;
 
@@ -194,7 +194,7 @@ class Device {
     // SystemMemoryManager is the interface to the hardware command queue
     std::unique_ptr<SystemMemoryManager> sysmem_manager;
     // Allows access to sysmem_writer
-    friend class CommandQueue;
+    friend class HWCommandQueue;
 
     std::set<CoreCoord> compute_cores_;
     std::set<CoreCoord> storage_only_cores_;
