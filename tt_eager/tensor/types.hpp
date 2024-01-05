@@ -156,12 +156,14 @@ bool operator!=(const Shape&, const Shape&);
 struct MemoryConfig {
     TensorMemoryLayout memory_layout = TensorMemoryLayout::INTERLEAVED;    // Interleave the data across multiple banks
     BufferType buffer_type = BufferType::DRAM; // Can be either DRAM or L1
+    std::optional <ShardSpec>  shard_spec = std::nullopt;
     bool is_sharded() const;
 
     static constexpr auto attribute_names = std::make_tuple("memory_layout", "buffer_type");
     const auto attribute_values() const {
         return std::make_tuple(std::cref(this->memory_layout), std::cref(this->buffer_type));
     }
+    ~MemoryConfig(){;}
 };
 
 bool operator==(const MemoryConfig& config_a, const MemoryConfig& config_b);
@@ -185,9 +187,15 @@ struct DeviceStorage {
 
     const MemoryConfig memory_config() const {
         const auto& buffer = this->buffer;
+
+        std::optional<ShardSpec> shard_spec_opt = std::nullopt;
+        if(is_sharded(buffer->buffer_layout())){
+            shard_spec_opt = buffer->shard_spec().tensor_shard_spec;
+        }
         return MemoryConfig{
             .memory_layout = buffer->buffer_layout(),
             .buffer_type = buffer->buffer_type(),
+            .shard_spec = shard_spec_opt
         };
     }
 
