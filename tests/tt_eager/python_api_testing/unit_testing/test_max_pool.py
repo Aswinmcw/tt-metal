@@ -147,8 +147,8 @@ def test_run_max_pool(
     if in_c != 64:
         pytest.skip("Current maxpool writer needs nchannels to be 64!")
 
-    if use_multicore and (padding != (1, 1) or stride != (2, 2) or kernel_size != (3, 3)):
-        pytest.skip("Multicore version only supports Resnet50 configs for now.")
+    # if use_multicore and (padding != (1, 1) or stride != (2, 2) or kernel_size != (3, 3)):
+    #     pytest.skip("Multicore version only supports Resnet50 configs for now.")
 
     if nblocks > 1 and in_mem_config.is_sharded() and use_multicore:
         pytest.skip("nblocks > 1 is not properly supported with multicore sharded input")
@@ -269,9 +269,14 @@ def test_run_max_pool(
 
     ## test for equivalance
     out_pytorch = out_pytorch.reshape(golden_pytorch.shape)
+    passing = torch.allclose(out_pytorch, golden_pytorch)  ##, rtol=1e-01, atol=1e-01)
     passing_pcc, output_pcc = comp_pcc(golden_pytorch, out_pytorch)
     passing = torch.allclose(out_pytorch, golden_pytorch)  ##, rtol=1e-01, atol=1e-01)
     logger.info(f"Passing PCC = {passing_pcc}")
     logger.info(f"Output PCC = {output_pcc}")
+    # print(f'OUTPUT: {out_pytorch}')
+    # print(f'GOLDEN: {golden_pytorch}')
+
+    assert passing
     assert passing_pcc
     assert passing
