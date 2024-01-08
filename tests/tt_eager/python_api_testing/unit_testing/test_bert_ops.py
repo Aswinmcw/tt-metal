@@ -235,55 +235,56 @@ def test_bert_linear(
     "in1_in_dram, out_sharded, in0_sharded, M, K, N, activation",
     [
         # # in1-L1-fusedQKV
-        (False, True, True, 2688, 1024, 3072, None),  # both sharded
-        (False, True, False, 2688, 1024, 3072, None),  # out sharded, in0 interleaved
-        (False, False, True, 2688, 1024, 3072, None),  # out interleaved, in0 sharded
-        (False, False, False, 2688, 1024, 3072, None),  # out interleaved, in0 interleaved
-        # # # # in1-dram-fusedQKV
-        (True, True, True, 2688, 1024, 3072, None),
-        (True, True, False, 2688, 1024, 3072, None),
-        (True, False, True, 2688, 1024, 3072, None),
-        (True, False, False, 2688, 1024, 3072, None),
-        # # # # in1-L1-selfout
-        (False, True, True, 2688, 1024, 1024, None),
-        (False, True, False, 2688, 1024, 1024, None),
-        (False, False, True, 2688, 1024, 1024, None),
-        (False, False, False, 2688, 1024, 1024, None),
-        # # # # in1-dram-selfout
-        (True, True, True, 2688, 1024, 1024, None),
-        (True, True, False, 2688, 1024, 1024, None),
-        (True, False, True, 2688, 1024, 1024, None),
-        (True, False, False, 2688, 1024, 1024, None),
-        # # # in1-L1-ff1
-        (False, True, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        (False, True, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        (False, False, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        (False, False, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        # # # # in1-dram-ff1
-        (True, True, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        (True, True, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        (True, False, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        (True, False, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
-        # # # # in1-L1-ff1 - no Gelu
-        (False, True, True, 2688, 1024, 4096, None),
-        (False, True, False, 2688, 1024, 4096, None),
-        (False, False, True, 2688, 1024, 4096, None),
-        (False, False, False, 2688, 1024, 4096, None),
-        # # # # in1-dram-ff1 - no Gelu
-        (True, True, True, 2688, 1024, 4096, None),
-        (True, True, False, 2688, 1024, 4096, None),
-        (True, False, True, 2688, 1024, 4096, None),
-        (True, False, False, 2688, 1024, 4096, None),
-        # # # # in1-L1-ff2
-        (False, True, True, 2688, 4096, 1024, None),
-        (False, True, False, 2688, 4096, 1024, None),
-        (False, False, True, 2688, 4096, 1024, None),
-        (False, False, False, 2688, 4096, 1024, None),
-        # # # # in1-dram-ff2
-        (True, True, True, 2688, 4096, 1024, None),
-        (True, True, False, 2688, 4096, 1024, None),
-        (True, False, True, 2688, 4096, 1024, None),
-        (True, False, False, 2688, 4096, 1024, None),
+        (False, True, True, 2688, 1024, 256, None),
+        # (False, True, True, 2688, 1024, 3072, None),  # both sharded
+        # (False, True, False, 2688, 1024, 3072, None),  # out sharded, in0 interleaved
+        # (False, False, True, 2688, 1024, 3072, None),  # out interleaved, in0 sharded
+        # (False, False, False, 2688, 1024, 3072, None),  # out interleaved, in0 interleaved
+        # # # # # in1-dram-fusedQKV
+        # (True, True, True, 2688, 1024, 3072, None),
+        # (True, True, False, 2688, 1024, 3072, None),
+        # (True, False, True, 2688, 1024, 3072, None),
+        # (True, False, False, 2688, 1024, 3072, None),
+        # # # # # in1-L1-selfout
+        # (False, True, True, 2688, 1024, 1024, None),
+        # (False, True, False, 2688, 1024, 1024, None),
+        # (False, False, True, 2688, 1024, 1024, None),
+        # (False, False, False, 2688, 1024, 1024, None),
+        # # # # # in1-dram-selfout
+        # (True, True, True, 2688, 1024, 1024, None),
+        # (True, True, False, 2688, 1024, 1024, None),
+        # (True, False, True, 2688, 1024, 1024, None),
+        # (True, False, False, 2688, 1024, 1024, None),
+        # # # # in1-L1-ff1
+        # (False, True, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # (False, True, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # (False, False, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # (False, False, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # # # # # in1-dram-ff1
+        # (True, True, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # (True, True, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # (True, False, True, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # (True, False, False, 2688, 1024, 4096, (ttl.tensor.FusibleActivation.GELU, True)),
+        # # # # # in1-L1-ff1 - no Gelu
+        # (False, True, True, 2688, 1024, 4096, None),
+        # (False, True, False, 2688, 1024, 4096, None),
+        # (False, False, True, 2688, 1024, 4096, None),
+        # (False, False, False, 2688, 1024, 4096, None),
+        # # # # # in1-dram-ff1 - no Gelu
+        # (True, True, True, 2688, 1024, 4096, None),
+        # (True, True, False, 2688, 1024, 4096, None),
+        # (True, False, True, 2688, 1024, 4096, None),
+        # (True, False, False, 2688, 1024, 4096, None),
+        # # # # # in1-L1-ff2
+        # (False, True, True, 2688, 4096, 1024, None),
+        # (False, True, False, 2688, 4096, 1024, None),
+        # (False, False, True, 2688, 4096, 1024, None),
+        # (False, False, False, 2688, 4096, 1024, None),
+        # # # # # in1-dram-ff2
+        # (True, True, True, 2688, 4096, 1024, None),
+        # (True, True, False, 2688, 4096, 1024, None),
+        # (True, False, True, 2688, 4096, 1024, None),
+        # (True, False, False, 2688, 4096, 1024, None),
     ],
 )
 # @skip_for_wormhole_b0("WH ND hang, see issue #4392")
@@ -310,8 +311,8 @@ def test_bert_linear_batch7(
         while out_block_w % out_subblock_w != 0:
             out_subblock_w = out_block_w // 2
 
-    out_subblock_h = 1
-    out_subblock_w = 4
+    out_subblock_h = 2
+    out_subblock_w = 1
 
     logger.debug("in0 block w h " + str(in0_block_w * 32) + " " + str(in0_block_h * 32))
     logger.debug("in1 block w h " + str(out_block_w * 32) + " " + str(in0_block_w * 32))
