@@ -31,14 +31,12 @@ void kernel_main() {
     setup_completion_queue_write_interface(completion_queue_start_addr, completion_queue_size);
 
     while (true) {
-
         kernel_profiler::init_profiler();
         kernel_profiler::mark_fw_start();
         kernel_profiler::mark_kernel_start();
 
         // Wait for producer to supply a command
         db_acquire(db_semaphore_addr, consumer_noc_encoding);
-        kernel_profiler::mark_time(5);
 
         // For each instruction, we need to jump to the relevant part of the device command
         uint32_t command_start_addr = get_command_slot_addr<cmd_base_address, consumer_data_buffer_size>(db_buf_switch);
@@ -63,7 +61,6 @@ void kernel_main() {
             cq_write_interface.completion_fifo_wr_toggle = not cq_write_interface.completion_fifo_wr_toggle;
             notify_host_of_completion_queue_write_pointer<host_completion_queue_write_ptr_addr>();
         } else if (is_program) {
-            kernel_profiler::mark_time(5);
             write_and_launch_program(program_transfer_start_addr, num_pages, command_ptr, producer_noc_encoding, consumer_cb_size, consumer_cb_num_pages, producer_consumer_transfer_num_pages, db_buf_switch);
             wait_for_program_completion(num_workers);
         } else {
