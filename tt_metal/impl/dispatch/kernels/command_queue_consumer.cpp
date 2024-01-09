@@ -72,13 +72,14 @@ void kernel_main() {
             notify_host_complete<host_finish_addr>();
         }
 
+        kernel_profiler::mark_kernel_end();
+        kernel_profiler::mark_fw_end();
+        kernel_profiler::send_profiler_data_to_dram();
+
         // notify producer that it has completed a command
         noc_semaphore_inc(producer_noc_encoding | get_semaphore(0), 1);
         db_buf_switch = not db_buf_switch;
         noc_async_write_barrier(); // Barrier for now
 
-        kernel_profiler::mark_kernel_end();
-        kernel_profiler::mark_fw_end();
-        kernel_profiler::send_profiler_data_to_dram();
     }
 }
