@@ -13,7 +13,6 @@
 constexpr uint32_t DEFAULT_ITERATIONS = 10000;
 constexpr uint32_t DEFAULT_WARMUP_ITERATIONS = 100;
 constexpr uint32_t MIN_KERNEL_SIZE_BYTES = 32;  // overhead
-constexpr uint32_t MAX_KERNEL_SIZE_K = 16;
 constexpr uint32_t DEFAULT_KERNEL_SIZE_K = 1;
 constexpr uint32_t MAX_CBS = 32;
 constexpr uint32_t MAX_ARGS = 255;
@@ -46,7 +45,7 @@ void init(int argc, char **argv) {
         log_info(LogTest, "Usage:");
         log_info(LogTest, "  -w: warm-up iterations before starting timer (default {}), ", DEFAULT_WARMUP_ITERATIONS);
         log_info(LogTest, "  -i: iterations (default {})", DEFAULT_ITERATIONS);
-        log_info(LogTest, "  -s: size of kernels in powers of 2 bytes (default {}, min {}, max {})", DEFAULT_KERNEL_SIZE_K * 1024, MIN_KERNEL_SIZE_BYTES, MAX_KERNEL_SIZE_K * 1024);
+        log_info(LogTest, "  -s: size of kernels in powers of 2 bytes (default {}, min {})", DEFAULT_KERNEL_SIZE_K * 1024, MIN_KERNEL_SIZE_BYTES);
         log_info(LogTest, "  -x: X end of core range (default {})", 1);
         log_info(LogTest, "  -y: Y end of core range (default {})", 1);
         log_info(LogTest, "  -c: number of CBs (default {}, max {})", 0, MAX_CBS);
@@ -70,10 +69,6 @@ void init(int argc, char **argv) {
     lazy_g = test_args::has_command_option(input_args, "-z");
     time_just_finish_g = test_args::has_command_option(input_args, "-f");
     kernel_cycles_g = test_args::get_command_option_uint32(input_args, "-r", 0);
-    if (kernel_size_g > MAX_KERNEL_SIZE_K * 1024) {
-        log_fatal("CB count must be 0..{}", MAX_KERNEL_SIZE_K * 1024);
-        exit(0);
-    }
     if (kernel_size_g < MIN_KERNEL_SIZE_BYTES) {
         log_fatal("Minimum kernel size is {} bytes", MIN_KERNEL_SIZE_BYTES);
         exit(0);
