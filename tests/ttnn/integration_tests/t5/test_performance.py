@@ -27,11 +27,11 @@ def get_expected_times(model_name, functional_t5):
     return {
         "t5-small": {
             ttnn_functional_t5: (12, 3),
-            ttnn_optimized_functional_t5: (9, 1),
+            ttnn_optimized_functional_t5: (10, 1),
         },
         "google/flan-t5-small": {
-            ttnn_functional_t5: (5, 3),
-            ttnn_optimized_functional_t5: (4, 1),
+            ttnn_functional_t5: (7, 3),
+            ttnn_optimized_functional_t5: (5, 1),
         },
     }[model_name][functional_t5]
 

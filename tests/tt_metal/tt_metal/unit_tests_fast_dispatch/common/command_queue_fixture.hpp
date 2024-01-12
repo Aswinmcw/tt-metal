@@ -34,7 +34,8 @@ class CommandQueueFixture : public ::testing::Test {
     }
 };
 
-class MultiCommandQueueFixture : public ::testing::Test {
+
+class CommandQueueMultiDeviceFixture : public ::testing::Test {
    protected:
     void SetUp() override {
         auto slow_dispatch = getenv("TT_METAL_SLOW_DISPATCH_MODE");

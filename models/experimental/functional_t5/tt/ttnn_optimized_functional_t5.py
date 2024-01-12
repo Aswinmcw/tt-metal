@@ -16,7 +16,27 @@ from models.experimental.functional_common.attention_mask_functions import (
 
 
 def t5_layer_norm(config, hidden_states, *, weight):
-    return ttnn.rms_norm(hidden_states, weight, epsilon=config.layer_norm_epsilon)
+    # T5 uses a layer_norm which only scales and doesn't shift, which is also known as Root Mean
+    # Square Layer Normalization https://arxiv.org/abs/1910.07467 thus varience is calculated
+    # w/o mean and there is no bias. Additionally we want to make sure that the accumulation for
+    # half-precision inputs is done in fp32
+
+    # return ttnn.rms_norm(hidden_states, weight, epsilon=config.layer_norm_epsilon)
+
+    squared_hidden_states = ttnn.pow(hidden_states, 2)
+    averaged_squared_hidden_states = ttnn.mean(
+        squared_hidden_states,
+        dim=-1,
+        keepdim=True,
+    )
+
+    variance = averaged_squared_hidden_states + config.layer_norm_epsilon
+    std = ttnn.rsqrt(variance)
+
+    hidden_states = hidden_states * std
+    hidden_states = hidden_states * weight
+
+    return hidden_states
 
 
 def get_activation_function(dense_act_fn):
@@ -98,10 +118,9 @@ def t5_attention(
             query,
             key,
             value,
-        ) = ttnn.nlp.split_query_key_value_and_split_heads(
+        ) = ttnn.transformer.split_query_key_value_and_split_heads(
             query_key_value_output,
             memory_config=ttnn.L1_MEMORY_CONFIG,
-            core_grid=(batch_size, num_cores_x),
             num_heads=config.num_heads,
         )
         ttnn.deallocate(query_key_value_output)
@@ -114,12 +133,6 @@ def t5_attention(
             # dtype=ttnn.bfloat8_b,
             core_grid=(batch_size, num_cores_x),
         )
-        query = ttnn.nlp.split_heads(
-            query_proj,
-            num_heads=config.num_heads,
-            order=(0, 2, 1, 3),
-        )
-        ttnn.deallocate(query_proj)
 
         key_value_proj = ttnn.linear(
             key_value_states,
@@ -128,7 +141,10 @@ def t5_attention(
             # dtype=ttnn.bfloat8_b,
             core_grid=(batch_size, num_cores_x),
         )
-        key, value = ttnn.nlp.split_key_value_and_split_heads(key_value_proj, num_heads=config.num_heads)
+        query, key, value = ttnn.transformer.split_query_key_value_and_split_heads(
+            query_proj, key_value_proj, num_heads=config.num_heads
+        )
+        ttnn.deallocate(query_proj)
         ttnn.deallocate(key_value_proj)
 
     attention_scores = ttnn.matmul(
@@ -144,7 +160,7 @@ def t5_attention(
     if mask is None:
         attention_probs = ttnn.softmax(attention_scores, dim=-1, memory_config=ttnn.L1_MEMORY_CONFIG)
     else:
-        attention_probs = ttnn.nlp.attention_softmax_(attention_scores, attention_mask=mask, head_size=None)
+        attention_probs = ttnn.transformer.attention_softmax_(attention_scores, attention_mask=mask, head_size=None)
 
     context_layer = ttnn.matmul(
         attention_probs,
@@ -156,7 +172,7 @@ def t5_attention(
     ttnn.deallocate(attention_probs)
     ttnn.deallocate(value)
 
-    context_layer = ttnn.nlp.concatenate_heads(
+    context_layer = ttnn.transformer.concatenate_heads(
         context_layer,
         memory_config=ttnn.L1_MEMORY_CONFIG,
     )

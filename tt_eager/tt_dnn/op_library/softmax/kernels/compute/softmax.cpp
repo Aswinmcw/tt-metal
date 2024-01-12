@@ -64,7 +64,30 @@ void MAIN {
         unpack_reconfig_data_format(cb_scale_mask, cb_fused_attn);
 
         // fused attn
-        // cb_wait_front(cb_scale_mask, block_w);
+        #if CAUSAL_MASK
+        cb_wait_front(cb_scale_mask, block_w);
+        cb_wait_front(cb_fused_attn, block_w);
+        index_subblock_w_offset = 0;
+        for (uint32_t j = 0; j < num_subblocks_w; j++) {
+            ACQ();
+            add_tiles_init();
+            for (uint32_t w = 0; w < subblock_w; w++) {
+                index = w + index_subblock_w_offset;
+                add_tiles(cb_scale_mask, cb_fused_attn, index, index, w);
+            }
+            cb_reserve_back(cb_exps, subblock_w);
+            exp_tile_init(true);
+            for (uint32_t w = 0; w < subblock_w; w++) {
+                exp_tile(w,true);
+                pack_tile(w, cb_exps);
+            }
+            cb_push_back(cb_exps, subblock_w);
+            REL();
+            index_subblock_w_offset += subblock_w;
+        }
+        cb_pop_front(cb_scale_mask, block_w);
+        cb_pop_front(cb_fused_attn, block_w);
+        #else
         cb_wait_front(cb_fused_attn, block_w);
         index_subblock_w_offset = 0;
         for (uint32_t j = 0; j < num_subblocks_w; j++) {
@@ -85,6 +108,8 @@ void MAIN {
             index_subblock_w_offset += subblock_w;
         }
         cb_pop_front(cb_scale_mask, block_w);
+        #endif // CAUSAL_MASK
+
         #else
         unpack_reconfig_data_format(cb_in0, cb_in0);
         pack_reconfig_data_format(cb_exps);
@@ -109,12 +134,14 @@ void MAIN {
         }
         cb_pop_front(cb_in0, block_w);
         unpack_reconfig_data_format(cb_exps, cb_bcast_scaler);
-        #endif
+        #endif // FUSED_SCALE_MASK
 
         // sum(exp(x))
         ACQ();
         reduce_init_delta<false>(REDUCE_OP, REDUCE_DIM);
-        // cb_wait_front(cb_exps, block_w);
+        if constexpr (block_w == 1) {  // has to add wait cb back for the one tile input
+            cb_wait_front(cb_exps, block_w);
+        }
         cb_wait_front(cb_bcast_scaler, 1);
         cb_reserve_back(cb_recipsumexps, 1);
         for (uint32_t w = 0; w < block_w; w++) {
