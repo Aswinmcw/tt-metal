@@ -308,7 +308,8 @@ def test_bert_linear_batch7(
     grid_size = (2, 2)
 
     in0_block_h = M // grid_size[1] // 32
-    in0_block_w = K // grid_size[0] // 32
+    # in0_block_w = K // grid_size[0] // 32
+    in0_block_w = K // 32
     out_block_h = M // grid_size[1] // 32
     out_block_w = N // grid_size[0] // 32
 
@@ -349,14 +350,14 @@ def test_bert_linear_batch7(
         bias, device, tt_memory_config=interleaved_mem_config_L1, tt_dtype=ttl.tensor.DataType.BFLOAT8_B
     )[0]
 
-    if in0_sharded:
-        in0_t = ttl.tensor.interleaved_to_sharded(
-            in0_t,
-            grid_size,
-            [M // grid_size[1], K // grid_size[0]],
-            ttl.tensor.TensorMemoryLayout.BLOCK_SHARDED,
-            ttl.tensor.ShardOrientation.ROW_MAJOR,
-        )
+    # if in0_sharded:
+    #     in0_t = ttl.tensor.interleaved_to_sharded(
+    #         in0_t,
+    #         grid_size,
+    #         [M // grid_size[1], K // grid_size[0]],
+    #         ttl.tensor.TensorMemoryLayout.BLOCK_SHARDED,
+    #         ttl.tensor.ShardOrientation.ROW_MAJOR,
+    #     )
 
     program_config = ttl.operations.primary.MatmulMultiCoreReuseMultiCastProgramConfig(
         compute_with_storage_grid_size=grid_size,
