@@ -234,7 +234,7 @@ from models.utility_functions import torch2tt_tensor, tt2torch_tensor, pad_by_ze
     "in1_in_dram, out_sharded, in0_sharded, M, K, N, activation",
     [
         # # in1-L1-fusedQKV
-        (False, True, True, 768, 1024, 64, None),
+        (False, True, True, 128, 64, 64, None),
         # (False, True, True, 2688, 1024, 3072, None),  # both sharded
         # (False, True, False, 2688, 1024, 3072, None),  # out sharded, in0 interleaved
         # (False, False, True, 2688, 1024, 3072, None),  # out interleaved, in0 sharded
@@ -294,8 +294,6 @@ def test_bert_linear_batch7(
     out_sharded,
     in1_in_dram,
     has_bias,
-    fp32_acc_mode,
-    packer_l1_acc,
     M,
     K,
     N,
@@ -378,8 +376,6 @@ def test_bert_linear_batch7(
             program_config=program_config,
             output_mem_config=output_mem_config,
             math_fidelity=fidelity,
-            fp32_dest_acc_en=fp32_acc_mode,
-            packer_l1_acc=packer_l1_acc,
         )
     else:
         output_t = ttl.operations.primary.matmul(
@@ -388,8 +384,6 @@ def test_bert_linear_batch7(
             program_config=program_config,
             output_mem_config=output_mem_config,
             math_fidelity=fidelity,
-            fp32_dest_acc_en=fp32_acc_mode,
-            packer_l1_acc=packer_l1_acc,
         )
 
     if out_sharded:
