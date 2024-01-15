@@ -317,9 +317,11 @@ bool Device::initialize(const std::vector<uint32_t>& l1_bank_remap) {
             for (const auto& [producer_core, consumer_core]: dispatch_cores) {
                 detail::CommandQueueInit(this, producer_core, consumer_core, *this->manager, cq_channel);
                 Program& command_queue_program = *this->command_queue_programs[cq_channel];
-                launch_msg_t msg = command_queue_program.kernels_on_core(producer_core)->launch_msg;
-                tt::llrt::write_launch_msg_to_core(this->id(), this->worker_core_from_logical_core(producer_core), &msg);
-                tt::llrt::write_launch_msg_to_core(this->id(), this->worker_core_from_logical_core(consumer_core), &msg);
+                launch_msg_t *msg;
+                msg = &command_queue_program.kernels_on_core(producer_core)->launch_msg;
+                tt::llrt::write_launch_msg_to_core(this->id(), this->worker_core_from_logical_core(producer_core), msg);
+                msg = &command_queue_program.kernels_on_core(consumer_core)->launch_msg;
+                tt::llrt::write_launch_msg_to_core(this->id(), this->worker_core_from_logical_core(consumer_core), msg);
                 cq_channel++;
             }
         } else {

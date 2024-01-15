@@ -114,13 +114,17 @@ void kernel_main() {
         }
 
         program_local_cb(producer_cb_num_pages, page_size, producer_cb_size);
+        DEBUG_STATUS('Q', 'S', '1', 'W');
         while (db_semaphore_addr[0] == 0)
             ;  // Check that there is space in the consumer
+        DEBUG_STATUS('Q', 'S', '1', 'D');
         program_consumer_cb(db_buf_switch, consumer_noc_encoding, consumer_cb_num_pages, page_size, consumer_cb_size);
         relay_command(db_buf_switch, consumer_noc_encoding);
         if (stall) {
+            DEBUG_STATUS('Q', 'S', '2', 'W');
             while (*db_semaphore_addr != 2)
                 ;
+            DEBUG_STATUS('Q', 'S', '2', 'D');
         }
         // Decrement the semaphore value
         noc_semaphore_inc(producer_noc_encoding | uint32_t(db_semaphore_addr), -1);  // Two's complement addition
