@@ -12,6 +12,7 @@
 #endif
 
 #include "compute_kernel_api/eltwise_unary/sfpu_split_includes.h"
+#include "debug/dprint.h"
 
 
 namespace NAMESPACE {
@@ -47,9 +48,10 @@ void MAIN {
     #endif
 
     constexpr bool spill = num_blocks > 1;
+    UNPACK ( DPRINT << "SPILL = " << (int)spill << ENDL());
 
     // mm_init(in0_cb_id, in1_cb_id, out_cb_id);
-    mm_block_init(in0_cb_id, in1_cb_id, out_cb_id);
+    mm_block_init(in0_cb_id, in1_cb_id, out_cb_id, out_subblock_w, out_subblock_h, in0_block_w );
     for (uint32_t b = 0; b < batch; b++){
         bool enable_reload = false;
         uint32_t out_num_tiles_to_wait = out_subblock_num_tiles;
@@ -91,7 +93,7 @@ void MAIN {
 
                         cb_pop_front(mm_partials_cb_id, out_subblock_num_tiles);
                         // Reconfigure srcA back
-                        mm_block_init_short_with_dt(in0_cb_id, in1_cb_id, mm_partials_cb_id);
+                        mm_block_init_short_with_dt(in0_cb_id, in1_cb_id, mm_partials_cb_id, out_subblock_w, out_subblock_h, in0_block_w);
                     } else {
                         // just acquire
                         tile_regs_acquire();
