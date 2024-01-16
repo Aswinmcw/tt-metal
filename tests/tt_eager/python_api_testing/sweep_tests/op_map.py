@@ -1004,4 +1004,8 @@ op_map = {
         "tt_lib_op": ttnn_ops.layernorm_noweights,
         "pytorch_op": pytorch_ops.ttnn_layernorm_noweights,
     },
+    "ttnn-rmsnorm": {
+        "tt_lib_op": ttnn_ops.rmsnorm,
+        "pytorch_op": pytorch_ops.ttnn_rmsnorm,
+    },
 }
