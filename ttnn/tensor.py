@@ -360,9 +360,9 @@ def deallocate(tensor: Tensor) -> None:
 
 
 @decorate_operation()
-def to_layout(tensor, layout: Layout):
+def to_layout(tensor, layout: Layout, *, value: Union[int, float] = 0):
     """
-    to_layout(tensor: ttnn.Tensor, layout: Layout) -> ttnn.Tensor
+    to_layout(tensor: ttnn.Tensor, layout: Layout, *, value: Union[int, float]=0) -> ttnn.Tensor
 
     Organizes the `ttnn.Tensor` :attr:`tensor` into either ROW_MAJOR_LAYOUT or TILE_LAYOUT.  When requesting ROW_MAJOR_LAYOUT
     the tensor will be returned unpadded in the last two dimensions.   When requesting TILE_LAYOUT the tensor will be automatically
@@ -501,12 +501,12 @@ def to_layout(tensor, layout: Layout):
                     ttl_input_tensor,
                     batch_sizes + [padded_height, padded_width],
                     [0, 0, 0, 0],
-                    0,
+                    value,
                 )
             )
         elif tensor.layout == ROW_MAJOR_LAYOUT:
             tensor = Tensor(
-                ttl_input_tensor.pad(batch_sizes + [padded_height, padded_width], [0, 0, 0, 0], 0).to(layout)
+                ttl_input_tensor.pad(batch_sizes + [padded_height, padded_width], [0, 0, 0, 0], value).to(layout)
             )
         tensor = reshape(
             tensor,
