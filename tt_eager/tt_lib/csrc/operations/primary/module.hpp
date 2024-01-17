@@ -19,6 +19,8 @@
 #include "tt_dnn/op_library/softmax/softmax_op.hpp"
 #include "tt_dnn/op_library/moreh_sum/moreh_sum_op.hpp"
 #include "tt_dnn/op_library/moreh_sum_backward/moreh_sum_backward_op.hpp"
+#include "tt_dnn/op_library/moreh_mean/moreh_mean_op.hpp"
+#include "tt_dnn/op_library/moreh_mean_backward/moreh_mean_backward_op.hpp"
 
 namespace py = pybind11;
 
@@ -513,6 +515,21 @@ void py_module(py::module& m_primary) {
         py::arg("output_grad").noconvert(),
         py::arg("input_grad").noconvert(),
         "Performs sum backward operation. Returns an input_grad tensor.");
+    m_primary.def(
+        "moreh_mean",
+        &moreh_mean,
+        py::arg("input").noconvert(),
+        py::arg("output").noconvert(),
+        py::kw_only(),
+        py::arg("dims").noconvert() = std::vector<int64_t>(),
+        py::arg("output_mem_config").noconvert() = operation::DEFAULT_OUTPUT_MEMORY_CONFIG,
+        "Performs mean operation. Returns an output tensor.");
+    m_primary.def(
+        "moreh_mean_backward",
+        &moreh_mean_backward,
+        py::arg("output_grad").noconvert(),
+        py::arg("input_grad").noconvert(),
+        "Performs mean backward operation. Returns an input_grad tensor.");
 }
 
 }  // namespace
