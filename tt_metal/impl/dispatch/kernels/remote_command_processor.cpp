@@ -46,11 +46,12 @@ void kernel_main() {
         uint32_t num_pages = command_ptr[DeviceCommand::num_pages_idx];
         uint32_t producer_consumer_transfer_num_pages = command_ptr[DeviceCommand::producer_consumer_transfer_num_pages_idx];
 
-        program_local_cb(data_section_addr, producer_cb_num_pages, page_size, producer_cb_size); // the producer should be responsible for setting this cb up?
+        // eth core should be programming the remote command processor CB?
+
         while (db_tx_semaphore_addr[0] == 0)
             ;  // Check that there is space in the dispatcher
         program_consumer_cb<dispatcher_cmd_base_addr, dispatcher_data_buffer_size>(db_tx_buf_switch, dispatcher_noc_encoding, consumer_cb_num_pages, page_size, consumer_cb_size);
-        relay_command(db_tx_buf_switch, dispatcher_noc_encoding);
+        relay_command<dispatcher_cmd_base_addr, dispatcher_data_buffer_size>(db_tx_buf_switch, dispatcher_noc_encoding);
         if (stall) {
             while (*db_tx_semaphore_addr != 2)
                 ;
@@ -64,20 +65,20 @@ void kernel_main() {
         noc_semaphore_inc(dispatcher_noc_encoding | get_semaphore(0), 1);
         noc_async_write_barrier();  // Barrier for now
 
-        transfer(
-            command_ptr,
-            num_buffer_transfers,
-            page_size,
-            producer_cb_size,
-            get_db_buf_addr<producer_cmd_base_addr, producer_data_buffer_size>(rx_buf_switch) + producer_cb_size,
-            producer_noc_encoding,
-            consumer_cb_size,
-            get_db_buf_addr<dispatcher_cmd_base_addr, dispatcher_data_buffer_size>(db_tx_buf_switch) + consumer_cb_size,
-            dispatcher_noc_encoding,
-            producer_consumer_transfer_num_pages,
-            rx_buf_switch,
-            db_tx_buf_switch
-        );
+        // transfer(
+        //     command_ptr,
+        //     num_buffer_transfers,
+        //     page_size,
+        //     producer_cb_size,
+        //     get_db_buf_addr<producer_cmd_base_addr, producer_data_buffer_size>(rx_buf_switch) + producer_cb_size,
+        //     producer_noc_encoding,
+        //     consumer_cb_size,
+        //     get_db_buf_addr<dispatcher_cmd_base_addr, dispatcher_data_buffer_size>(db_tx_buf_switch) + consumer_cb_size,
+        //     dispatcher_noc_encoding,
+        //     producer_consumer_transfer_num_pages,
+        //     rx_buf_switch,
+        //     db_tx_buf_switch
+        // );
 
         // notify producer ethernet router that it has completed transferring a command
         noc_semaphore_inc(producer_noc_encoding | get_semaphore(0), 1);

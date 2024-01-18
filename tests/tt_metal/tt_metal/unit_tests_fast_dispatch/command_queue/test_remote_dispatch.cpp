@@ -44,4 +44,8 @@ TEST_F(CommandQueueMultiDeviceFixture, DummyTest) {
     tt::test_utils::print_vector_fixed_numel_per_row(readback_data, 32);
 }
 
+TEST_F(CommandQueueMultiDeviceFixture, RemoteDummyTest) {
+    std::cout << "Running remote dummy test" << std::endl;
+}
+
 }   // namespace remote_tests

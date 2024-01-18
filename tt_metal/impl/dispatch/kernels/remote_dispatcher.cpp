@@ -7,11 +7,8 @@
 
 // Dispatches fast dispatch commands to worker cores. Currently only runs on remote devices
 void kernel_main() {
-    constexpr uint32_t host_completion_queue_write_ptr_addr = get_compile_time_arg_val(0);
-    constexpr uint32_t completion_queue_start_addr = get_compile_time_arg_val(1);
-    constexpr uint32_t completion_queue_size = get_compile_time_arg_val(2);
-    constexpr uint32_t cmd_base_address = get_compile_time_arg_val(4);
-    constexpr uint32_t consumer_data_buffer_size = get_compile_time_arg_val(5);
+    constexpr uint32_t cmd_base_address = get_compile_time_arg_val(0);
+    constexpr uint32_t data_buffer_size = get_compile_time_arg_val(1);
 
     volatile tt_l1_ptr uint32_t* db_rx_semaphore_addr =
         reinterpret_cast<volatile tt_l1_ptr uint32_t*>(get_semaphore(0));  // Should be initialized to 0 by host
@@ -28,7 +25,7 @@ void kernel_main() {
         db_acquire(db_rx_semaphore_addr, dispatcher_noc_encoding);
 
         // For each instruction, we need to jump to the relevant part of the device command
-        uint32_t command_start_addr = get_command_slot_addr<cmd_base_address, consumer_data_buffer_size>(db_rx_buf_switch);
+        uint32_t command_start_addr = get_command_slot_addr<cmd_base_address, data_buffer_size>(db_rx_buf_switch);
         uint32_t buffer_transfer_start_addr = command_start_addr + (DeviceCommand::NUM_ENTRIES_IN_COMMAND_HEADER * sizeof(uint32_t));
         uint32_t program_transfer_start_addr = buffer_transfer_start_addr + ((DeviceCommand::NUM_ENTRIES_PER_BUFFER_TRANSFER_INSTRUCTION * DeviceCommand::NUM_POSSIBLE_BUFFER_TRANSFERS) * sizeof(uint32_t));
 
@@ -45,18 +42,18 @@ void kernel_main() {
         uint32_t sharded_buffer_num_cores = command_ptr[DeviceCommand::sharded_buffer_num_cores_idx];
         uint32_t wrap = command_ptr[DeviceCommand::wrap_idx];
 
-        if ((DeviceCommand::WrapRegion)wrap == DeviceCommand::WrapRegion::COMPLETION) {
-            // should this case make it to the R chip ... the completion queue interface is on the MMIO chip
-            // instead could add a connection from remote issue queue interface to remote completion queue interface to signal completion queue wrap
-        } else if (is_program) {
-            write_and_launch_program(program_transfer_start_addr, num_pages, command_ptr, producer_noc_encoding, consumer_cb_size, consumer_cb_num_pages, producer_consumer_transfer_num_pages, db_buf_switch);
-            wait_for_program_completion(num_workers);
-        } else {
-            command_ptr = reinterpret_cast<volatile tt_l1_ptr uint32_t*>(buffer_transfer_start_addr);
-            // TODO: Uplift this!
-            // if the dst buffer type is system memory then we need to write it to the remote signaller to send back
-            write_buffers(command_ptr, completion_queue_start_addr, num_buffer_transfers,  sharded_buffer_num_cores, consumer_cb_size, consumer_cb_num_pages, producer_noc_encoding, producer_consumer_transfer_num_pages, db_buf_switch);
-        }
+        // if ((DeviceCommand::WrapRegion)wrap == DeviceCommand::WrapRegion::COMPLETION) {
+        //     // should this case make it to the R chip ... the completion queue interface is on the MMIO chip
+        //     // instead could add a connection from remote issue queue interface to remote completion queue interface to signal completion queue wrap
+        // } else if (is_program) {
+        //     write_and_launch_program(program_transfer_start_addr, num_pages, command_ptr, producer_noc_encoding, consumer_cb_size, consumer_cb_num_pages, producer_consumer_transfer_num_pages, db_rx_buf_switch);
+        //     wait_for_program_completion(num_workers);
+        // } else {
+        //     command_ptr = reinterpret_cast<volatile tt_l1_ptr uint32_t*>(buffer_transfer_start_addr);
+        //     // TODO: Uplift this!
+        //     // if the dst buffer type is system memory then we need to write it to the remote signaller to send back
+        //     write_buffers<0>(command_ptr, 0, num_buffer_transfers,  sharded_buffer_num_cores, consumer_cb_size, consumer_cb_num_pages, producer_noc_encoding, producer_consumer_transfer_num_pages, db_rx_buf_switch);
+        // }
 
         if (finish) {
             // tell remote signaller
