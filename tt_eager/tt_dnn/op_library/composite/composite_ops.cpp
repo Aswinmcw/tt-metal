@@ -1308,6 +1308,70 @@ Tensor repeat(const Tensor& input_a, const Shape& shape_b, const MemoryConfig& o
     return operation::decorate_as_composite(__func__, _repeat)(input_a, shape_b, output_mem_config);
 }
 
+
+// Argmax returns the index of maximum element in the tensor
+Tensor _argmax(const Tensor& input_a, int dim, const MemoryConfig& output_mem_config) {
+
+    auto& input_shape = input_a.shape();
+    int size = input_shape[0] * input_shape[1] * input_shape[2] * input_shape[3];
+    if (dim == 3)
+    {
+        Tensor tindex = tt::numpy::index_width<bfloat16>(input_shape, DataType::BFLOAT16);
+        Tensor max_val = reduce(input_a, ReduceOpMath::MAX, ReduceOpDim::W);
+        Tensor max_tensor = zeros_like(input_a, output_mem_config);
+        max_tensor = bcast(max_tensor, max_val,  BcastOpMath::ADD, BcastOpDim::W, output_mem_config);
+        Tensor cmp_results = eq(input_a, max_tensor, std::nullopt, output_mem_config);
+        Tensor max_indices =  mul(cmp_results ,tindex, std::nullopt, output_mem_config);
+        Tensor midx = full_like(max_indices, size);
+        Tensor result = where(eqz(max_indices), midx, max_indices);
+        result = reduce(result, ReduceOpMath::MIN, ReduceOpDim::W);
+        Tensor res_index = zeros_like(result, output_mem_config);
+        result = where(eq(result, full_like(result, size)), res_index, result);
+        res_index = bcast(res_index, result,  BcastOpMath::ADD, BcastOpDim::W, output_mem_config);
+        std::vector<int64_t> permute_dims = {0, 1, 3, 2};
+        Tensor transpose_res = permute(res_index,permute_dims);
+        return transpose_res;
+    }
+    else if (dim == 2)
+    {
+        Tensor tindex = tt::numpy::index_height<bfloat16>(input_shape, DataType::BFLOAT16);
+        Tensor max_val = reduce(input_a, ReduceOpMath::MAX, ReduceOpDim::H);
+        Tensor max_tensor = zeros_like(input_a, output_mem_config);
+        max_tensor = bcast(max_tensor, max_val,  BcastOpMath::ADD, BcastOpDim::H, output_mem_config);
+        Tensor cmp_results = eq(input_a, max_tensor, std::nullopt, output_mem_config);
+        Tensor max_indices =  mul(cmp_results ,tindex, std::nullopt, output_mem_config);
+        Tensor midx = full_like(max_indices, size);
+        Tensor result = where(eqz(max_indices), midx, max_indices);
+        result = reduce(result, ReduceOpMath::MIN, ReduceOpDim::H);
+        Tensor res_index = zeros_like(result, output_mem_config);
+        result = where(eq(result, full_like(result, size)), res_index, result);
+        res_index = bcast(res_index, result,  BcastOpMath::ADD, BcastOpDim::H, output_mem_config);
+        return res_index;
+    }
+    else{
+        /*
+        TODO: Fix the index generation code. With the fix the code will work for argmax that return entire maximum valu index for [1 x 1 x N x M]
+        auto& input_shape = input_a.shape();
+        int size = input_shape[0] * input_shape[1] * input_shape[2] * input_shape[3];
+        Tensor tindex = tt::numpy::index_argmaxmin<bfloat16>(input_shape, DataType::BFLOAT16);
+        Tensor max_val = reduce(input_a, ReduceOpMath::MAX, ReduceOpDim::HW);
+        Tensor max_tensor = zeros_like(input_a, output_mem_config);
+        max_tensor = bcast(max_tensor, max_val,  BcastOpMath::ADD, BcastOpDim::HW, output_mem_config);
+        Tensor cmp_results = eq(input_a, max_tensor, std::nullopt, output_mem_config);
+        Tensor max_indices =  mul(cmp_results ,tindex, std::nullopt, output_mem_config);
+        Tensor result = full_like(max_indices, size);
+        result = where(eqz(max_indices), result, max_indices);
+        result = reduce(result, ReduceOpMath::MIN, ReduceOpDim::HW);
+        Tensor res_index = zeros_like(input_a, output_mem_config);
+        res_index = bcast(res_index, result,  BcastOpMath::ADD, BcastOpDim::HW, output_mem_config);
+        return res_index;*/
+    }
+    return input_a;
+
+}
+Tensor argmax(const Tensor& input_a, int dim, const MemoryConfig& output_mem_config /* = operation::DEFAULT_OUTPUT_MEMORY_CONFIG */) {
+    return operation::decorate_as_composite(__func__, _argmax)(input_a, dim, output_mem_config);
+}
 }//namespace tt_metal
 
 }//namespace tt

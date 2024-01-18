@@ -736,6 +736,8 @@ Other Operations
 
 .. autofunction:: tt_lib.tensor.identity
 
+.. autofunction:: tt_lib.tensor.argmax
+
 Backward Operations
 -------------------
 
