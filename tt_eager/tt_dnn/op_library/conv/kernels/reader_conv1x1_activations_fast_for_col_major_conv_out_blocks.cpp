@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 #include "dataflow_api.h"
-// #include "debug/dprint.h"
+#include "debug/dprint.h"
 
 inline void pad_l1_buffer_with_zeroes(uint32_t l1_addr, uint32_t pad_size_bytes) {
     volatile std::uint32_t* dst = reinterpret_cast<volatile std::uint32_t*>(l1_addr);
@@ -145,6 +145,9 @@ void kernel_main() {
                             uint32_t channel_id = (n * conv_act_size_h * conv_act_size_w) + (in_h_raw * conv_act_size_w) + in_w_raw;
                             //DPRINT << "n=" << n << " h=" << in_h_raw << " w=" << in_w_raw << " conv_act_size_h=" << conv_act_size_h << " conv_act_size_w=" << conv_act_size_w << ENDL();
                             uint32_t dst_addr = l1_write_addr_act + l1_addr_offset;
+                            uint32_t bank_id = channel_id & (NUM_DRAM_BANKS - 1);
+                            DPRINT << "bank_id " << bank_id << " channel_id " << channel_id<< " channel_slice_size_bytes "<< channel_slice_size_bytes<< " channel_slice_offset "<< channel_slice_offset<< ENDL();
+
                             s_act.noc_async_read_partial_page(channel_id, dst_addr, channel_slice_size_bytes, channel_slice_offset);
                         }
                     } //else { DPRINT << "total_h here =" << total_h << ENDL();  } //do nothing. let garbage rows be in l1
@@ -165,6 +168,10 @@ void kernel_main() {
                 } // for block height
                 //DPRINT << "waiting on read barrier" << ENDL();
                 noc_async_read_barrier();
+                // DPRINT<< TSLICE(cb_id_act, 0, SliceRange::h0_w0_32()) << ENDL();
+                // DPRINT<< TSLICE(cb_id_act, 0, SliceRange::h1_w0_32()) << ENDL();
+                // DPRINT<< TSLICE(cb_id_act, 0, SliceRange::h2_w0_32()) << ENDL();
+                // DPRINT<< TSLICE(cb_id_act, 0, SliceRange::h3_w0_32()) << ENDL();
                 //DPRINT << "done on read barrier" << ENDL();
                 cb_push_back(cb_id_act, act_block_num_tiles);
                 channel_slice_offset += channel_slice_size_bytes;

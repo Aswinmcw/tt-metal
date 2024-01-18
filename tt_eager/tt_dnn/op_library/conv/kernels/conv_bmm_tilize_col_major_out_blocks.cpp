@@ -16,6 +16,8 @@
 
 #include "compute_kernel_api/eltwise_unary/sfpu_split_includes.h"
 
+#include "debug/dprint.h"
+
 #define DEBUG_PRINT 0
 
 // #include "debug_macros.h"
@@ -46,10 +48,28 @@ inline void tilize_in(
     uint32_t in_num_subblocks,
     uint32_t out_cb_id
 ) {
+    UNPACK(( DPRINT<< "in_subblock_h " << in_subblock_h << ENDL() ));
+    UNPACK(( DPRINT<< "in_block_w " << in_block_w << ENDL() ));
+    UNPACK(( DPRINT<< "in_num_subblocks " << in_num_subblocks << ENDL() ));
     tilize_init_short(in_cb_id, in_block_w);
     for (uint32_t in_subblock = 0; in_subblock < in_num_subblocks; ++in_subblock) {
         for (uint32_t h = 0; h < in_subblock_h; ++h) {
             cb_wait_front(in_cb_id, in_block_w);
+
+            UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h0_w0_32(), true,false) << ENDL() ));
+            UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h1_w0_32(), true,false) << ENDL() ));
+            UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h2_w0_32(), true,false) << ENDL() ));
+            UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h3_w0_32(), true,false) << ENDL() ));
+            UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h4_w0_32(), true,false) << ENDL() ));
+            UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h5_w0_32(), true,false) << ENDL() ));
+            // UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h6_w0_32(), true,false) << ENDL() ));
+            // UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h7_w0_32()) << ENDL() ));
+            // UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h8_w0_32()) << ENDL() ));
+            // UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h9_w0_32()) << ENDL() ));
+            // UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h10_w0_32()) << ENDL() ));
+            // UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h30_w0_32()) << ENDL() ));
+            // UNPACK(( DPRINT<< TSLICE(in_cb_id, 0, SliceRange::h31_w0_32()) << ENDL() ));
+
             cb_reserve_back(out_cb_id, in_block_w);
             tilize_block(in_cb_id, in_block_w, out_cb_id);
             cb_push_back(out_cb_id, in_block_w);
@@ -204,6 +224,8 @@ void MAIN {
             for(uint32_t in0_block_w_i = 0; in0_block_w_i < in0_num_blocks_w; ++in0_block_w_i) {
                 bool last_out = (in0_block_w_i == in0_num_blocks_w - 1);
                 if constexpr (tilize_in0) {
+
+                    UNPACK(( DPRINT<< "tilize_in0" << ENDL() ));
                     #if defined PACK_RELU and not defined FUSE_BIAS
                     if (last_out) {
                         // if last block we pack the final result with relu enabled
@@ -222,6 +244,17 @@ void MAIN {
                     mm_block_init_short_with_dt(mm_in0_cb_id, in1_cb_id, /*srca_old_operand=*/in0_cb_id);
                 }
                 cb_wait_front(mm_in0_cb_id, in0_block_num_tiles);
+
+
+                // UNPACK(( DPRINT<< in0_block_num_tiles << ENDL() ));
+                UNPACK(( DPRINT<< TSLICE(mm_in0_cb_id, 0, SliceRange::h0_w0_32()) << ENDL() ));
+                UNPACK(( DPRINT<< TSLICE(mm_in0_cb_id, 0, SliceRange::h1_w0_32()) << ENDL() ));
+                UNPACK(( DPRINT<< TSLICE(mm_in0_cb_id, 0, SliceRange::h2_w0_32()) << ENDL() ));
+                UNPACK(( DPRINT<< TSLICE(mm_in0_cb_id, 0, SliceRange::h3_w0_32()) << ENDL() ));
+                UNPACK(( DPRINT<< TSLICE(mm_in0_cb_id, 0, SliceRange::h4_w0_32()) << ENDL() ));
+                UNPACK(( DPRINT<< TSLICE(mm_in0_cb_id, 0, SliceRange::h5_w0_32()) << ENDL() ));
+
+
                 cb_wait_front(in1_cb_id, in1_block_num_tiles);
 
                 if (last_out) {

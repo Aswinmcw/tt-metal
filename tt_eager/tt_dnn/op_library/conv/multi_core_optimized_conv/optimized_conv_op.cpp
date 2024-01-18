@@ -63,6 +63,8 @@ tuple<CBHandle, CBHandle> create_CBs(tt_metal::Program &program,
     uint32_t tilized_act_tile_size = tt_metal::detail::TileSize(tilized_act_df);
     uint32_t out_tile_size = tt_metal::detail::TileSize(out_df);
 
+    // std::cout << "non sharded conv" << std::endl;
+
     // Invariants
     CircularBufferConfig cb_act_config = CircularBufferConfig(num_cb0_tiles * act_tile_size, {{act_cb, act_df}})
 		.set_page_size(act_cb, act_tile_size);
@@ -71,6 +73,8 @@ tuple<CBHandle, CBHandle> create_CBs(tt_metal::Program &program,
     CBHandle cb_sharded_act = 0;
     CBHandle cb_sharded_act_mcast_receiver = 0;
     if (input.is_sharded()) {
+        // std::cout << "input sharded" << std::endl;
+
         uint32_t num_bytes_for_df = datum_size(act_df);
         auto shard_shape = input.shard_spec().value().shard_shape;
         CircularBufferConfig cb_sharded_act_config = CircularBufferConfig(shard_shape[0] * shard_shape[1] * num_bytes_for_df, {{sharded_act_cb, act_df}})
@@ -164,6 +168,20 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_(const Tensor& a, cons
     // TODO: Can conv_act_c_blocks be same as num_blocks_act_w?
     uint32_t conv_act_c_blocks = block_config.act_c_num_blocks;
 
+    if (a.layout() == Layout::ROW_MAJOR) {
+        std::cout << "a row major layour" << std::endl;
+    }else {
+        std::cout << "a tile layout" << std::endl;
+    }
+
+    if (output.layout() == Layout::ROW_MAJOR) {
+        std::cout << "output row major layour" << std::endl;
+    }else {
+        std::cout << "output tile layout" << std::endl;
+    }
+
+    std::cout << "a shape " << ashape[0] << " " <<ashape[1] << " " << ashape[2] << " " << ashape[3] << std::endl;
+
     uint32_t conv_act_size_h = ashape[1];
     uint32_t conv_act_size_w = ashape[2];
     uint32_t conv_act_size_c = ashape[3];
@@ -185,6 +203,9 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_(const Tensor& a, cons
     uint32_t act_matrix_width = (uint32_t) act_matrix_shape[2];
     uint32_t act_matrix_height_unpadded = (uint32_t) act_matrix_shape_unpadded[1];
     uint32_t act_matrix_width_unpadded = (uint32_t) act_matrix_shape_unpadded[2];
+
+    std::cout << "act_matrix_height " << act_matrix_height << std::endl;
+    std::cout << "act_matrix_width " << act_matrix_width << std::endl;
 
     // Tensor b has weights and it should be tiled layout after converting conv weights into weight matrix
     TT_ASSERT(b.layout() == Layout::TILE, "Conv weights should be in tiled layout");
@@ -277,6 +298,15 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_(const Tensor& a, cons
     DataFormat out_df = tt_metal::datatype_to_dataformat_converter(output.dtype());
     DataFormat bias_df = has_bias ? tt_metal::datatype_to_dataformat_converter(bias.value().dtype()) : DataFormat::Float16_b;
     DataFormat tilized_act_df = out_df;
+
+
+
+    if (act_df == DataFormat::Bfp8_b){
+        std::cout << "act_df  Bfp8_b" << std::endl;
+
+    }else if (act_df == DataFormat::Float16_b){
+        std::cout << "act_df  Float16_b" << std::endl;
+    }
 
     tt_metal::Buffer *src0_dram_buffer = a.buffer();
     tt_metal::Buffer *src1_dram_buffer = b.buffer();
@@ -390,6 +420,8 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_(const Tensor& a, cons
     uint32_t num_cores_x = p_config.grid_size.x;
     uint32_t num_cores_y = p_config.grid_size.y;
     uint32_t total_num_cores = num_cores_x * num_cores_y;
+
+    std::cout << "num_cores_x " <<num_cores_x << " num_cores_y " <<num_cores_y << std::endl;
     assert(num_cores_x < 13);
     assert(num_cores_y < 10);
     uint32_t per_core_out_matrix_height_ntiles = p_config.per_core_out_matrix_height_ntiles;
@@ -582,6 +614,7 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_(const Tensor& a, cons
     string writer_mcast_receiver_kernel;
     bool reader_with_indices = false;
     if (rn50_first_conv) {
+        std::cout << "rn50_first_conv " <<std::endl;
         reader_kernel = "tt_eager/tt_dnn/op_library/conv/kernels/reader_conv_activations_fast_resnet50_first_conv.cpp";
         compute_kernel = "tt_eager/tt_dnn/op_library/conv/kernels/bmm_tilize_untilize_all_weights_in_l1_single_output_block_width_dim.cpp";
         writer_mcast_sender_kernel = "tt_eager/tt_dnn/op_library/conv/kernels/writer_and_mcast_sender_weights_resnet50_first_conv_tiled_out.cpp";
@@ -591,14 +624,17 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_(const Tensor& a, cons
         writer_mcast_sender_kernel = "tt_eager/tt_dnn/op_library/conv/kernels/writer_tiled_out_mcast_sender_conv_weights_tiled_col_to_rm_blocks.cpp";
         writer_mcast_receiver_kernel = "tt_eager/tt_dnn/op_library/conv/kernels/writer_tiled_out_mcast_receiver_conv_weights_tiled_col_to_rm_blocks.cpp";
         if (weight_size_h == 1 && weight_size_w == 1) {
+            std::cout << "1x1 conv " <<std::endl;
             // use custom 1x1 conv kernels
             reader_kernel = "tt_eager/tt_dnn/op_library/conv/kernels/reader_conv1x1_activations_fast_for_col_major_conv_out_blocks.cpp";
             assert(conv_act_size_c % act_block_w_datums == 0);
             assert(num_blocks_act_w == (conv_act_size_c / act_block_w_datums));
         }
         else {
+            std::cout << "3x3_weights " <<std::endl;
             // If sharded input, always use reader kernel for input shard with halo and padding
             if (a.memory_config().is_sharded() && weight_size_h == 3 && weight_size_w == 3 && stride_h == 1) {
+                std::cout << "input sharded " <<std::endl;
                 reader_with_indices = true;
                 if (weight_width_sliced) {
                     assert(read_3x3_window_in_inner_loop == true);

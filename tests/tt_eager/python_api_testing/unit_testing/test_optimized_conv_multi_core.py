@@ -65,7 +65,7 @@ import torch
         # # num blocks weight w = 4, num blocks act h = 4, num blocks act w = 3
         # (16 * 32, 32, 24, 24, 3, 3, 1, 1, 0, 0),
         # (32, 32, 16, 16, 1, 1, 1, 1, 0, 0, 2, 1, 4, 2),
-        (64, 32, 16, 16, 1, 1, 1, 1, 0, 0, 1, 1, 4, 2, 2),
+        (64, 128, 16, 16, 1, 1, 1, 1, 0, 0, 1, 1, 4, 2, 2),
     ),
 )
 def test_run_optimized_conv(
@@ -101,7 +101,20 @@ def test_run_optimized_conv(
         torch.manual_seed(0)
         a_activation_shape = [N, C, H, W]
         # A_pyt = torch.randn(a_activation_shape)
-        A_pyt = torch.normal(mean=0, std=0.1, size=a_activation_shape)
+        # A_pyt = torch.normal(mean=0, std=0.1, size=a_activation_shape)
+
+        # print(a_activation_shape)
+
+        shape = (1, 16, 16, 128)
+        total_elements = shape[1] * shape[2] * shape[3]
+        values = torch.arange(0, total_elements / 32).repeat_interleave(32)
+        values = values[:total_elements]
+
+        A_pyt = values.view(shape)
+        # print(A_pyt.shape)
+        # print(A_pyt)
+        A_pyt = torch.permute(A_pyt, (0, 3, 1, 2))
+
         # A_pyt = torch.ones(a_activation_shape, dtype=torch.bfloat16).float()
         b_weights_shape = [K, C, R, S]
         # B_pyt = torch.randn(b_weights_shape)
@@ -124,10 +137,12 @@ def test_run_optimized_conv(
         OH = ((int)((H - R + 2 * pad_h) / stride_h)) + 1
         OW = ((int)((W - S + 2 * pad_w) / stride_w)) + 1
         conv_output_shape = [N, OH, OW, K]
+        # print(conv_output_shape)
         act_matrix_height_ntiles = (int)(_nearest_y(N * OH * OW, act_block_h * 32) / 32)
         # Prepare activations
         A_cl_host = create_conv_act_tensor(A_pyt, N, C, H, W)
         A = A_cl_host.to(device)
+        A_cl_host.print()
 
         # Prepare weights
         B_tiled_host = create_conv_weight_tensor_special_padding(B_pyt, K, C, R, S, weight_block_h, weight_block_w)
@@ -177,6 +192,10 @@ def test_run_optimized_conv(
                 out_subblock_w_ntiles=out_subblock_w,
             ),
         )
+        print(out.shape_without_padding()[0])
+        print(out.shape_without_padding()[1])
+        print(out.shape_without_padding()[2])
+        print(out.shape_without_padding()[3])
         if not untilize_out:
             out_unpadded_shape = [1, 1, N * OH * OW, K]
             assert out_unpadded_shape == list(out.shape_without_padding())
