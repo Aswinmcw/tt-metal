@@ -443,11 +443,6 @@ namespace tt::tt_metal{
         }
 
         inline void CommandQueueInit(Device* device, const CoreCoord& producer_core, const CoreCoord& consumer_core, SystemMemoryManager& manager, const uint8_t command_queue_channel) {
-            // // Place the cores into reset since need to update a lot of core info
-            // tt::Cluster::instance().assert_risc_reset_at_core(tt_cxy_pair(device->id(), device->worker_core_from_logical_core(producer_core)));
-            // tt::Cluster::instance().assert_risc_reset_at_core(tt_cxy_pair(device->id(), device->worker_core_from_logical_core(consumer_core)));
-            // tt::Cluster::instance().l1_barrier(device->id());
-
             // Reset the host manager's pointer for this command queue
             manager.reset(command_queue_channel);
 
@@ -461,18 +456,7 @@ namespace tt::tt_metal{
 
             // Need to update the issue queue limit to be exactly equal to the command data in the queue
             Program& command_queue_program = *device->command_queue_programs[command_queue_channel];
-            KernelHandle producer_kernel_handle = command_queue_program.kernels_on_core(producer_core)->riscv0_id.value();
-            uint32_t issue_queue_size = manager.get_issue_queue_size(command_queue_channel);
-            vector<uint32_t> producer_runtime_args = {issue_queue_size};
-            SetRuntimeArgs(
-                command_queue_program,
-                producer_kernel_handle,
-                producer_core,
-                producer_runtime_args);
-
-            detail::WriteRuntimeArgsToDevice(device, command_queue_program);
             detail::ConfigureDeviceWithProgram(device, command_queue_program);
-            tt::Cluster::instance().dram_barrier(device->id());
             tt::Cluster::instance().l1_barrier(device->id());
 
             std::vector<uint32_t> pointers(CQ_START / sizeof(uint32_t), 0);
@@ -518,7 +502,7 @@ namespace tt::tt_metal{
                     uint32_t host_issue_queue_read_ptr_addr = HOST_CQ_ISSUE_READ_PTR + cq_channel * cq_size;
                     uint32_t issue_queue_start_addr = CQ_START + cq_channel * cq_size;
                     uint32_t issue_queue_size = manager.get_issue_queue_size(cq_channel);
-                    vector<uint32_t> producer_compile_args = {host_issue_queue_read_ptr_addr, issue_queue_start_addr};
+                    vector<uint32_t> producer_compile_args = {host_issue_queue_read_ptr_addr, issue_queue_start_addr, issue_queue_size};
 
                     uint32_t host_completion_queue_write_ptr_addr = HOST_CQ_COMPLETION_WRITE_PTR + cq_channel * cq_size;
                     uint32_t completion_queue_start_addr = CQ_START + issue_queue_size + cq_channel * cq_size;

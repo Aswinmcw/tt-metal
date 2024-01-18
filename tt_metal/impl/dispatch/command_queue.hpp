@@ -51,7 +51,7 @@ struct ProgramMap {
 };
 
 // Only contains the types of commands which are enqueued onto the device
-enum class EnqueueCommandType { ENQUEUE_READ_BUFFER, ENQUEUE_WRITE_BUFFER, ENQUEUE_PROGRAM, FINISH, WRAP, INVALID };
+enum class EnqueueCommandType { ENQUEUE_READ_BUFFER, ENQUEUE_WRITE_BUFFER, ENQUEUE_PROGRAM, FINISH, ENQUEUE_WRAP, ENQUEUE_RESTART, INVALID };
 
 string EnqueueCommandTypeToString(EnqueueCommandType ctype);
 
@@ -74,6 +74,25 @@ class Command {
     virtual const DeviceCommand assemble_device_command(uint32_t buffer_size) = 0;
 };
 
+class EnqueueRestartCommand : public Command {
+   private:
+    Device* device;
+    SystemMemoryManager& manager;
+    uint32_t command_queue_channel;
+   public:
+    EnqueueRestartCommand(
+        uint32_t command_queue_channel,
+        Device* device,
+        SystemMemoryManager& manager
+    );
+
+    const DeviceCommand assemble_device_command(uint32_t dst);
+
+    void process();
+
+    EnqueueCommandType type() { return EnqueueCommandType::ENQUEUE_RESTART; };
+};
+
 class EnqueueReadBufferCommand : public Command {
    private:
     Device* device;
@@ -81,7 +100,6 @@ class EnqueueReadBufferCommand : public Command {
     void* dst;
     uint32_t src_page_index;
     uint32_t pages_to_read;
-    static constexpr EnqueueCommandType type_ = EnqueueCommandType::ENQUEUE_READ_BUFFER;
     uint32_t command_queue_channel;
 
    public:
@@ -100,7 +118,7 @@ class EnqueueReadBufferCommand : public Command {
 
     void process();
 
-    EnqueueCommandType type();
+    EnqueueCommandType type() { return EnqueueCommandType::ENQUEUE_READ_BUFFER; };
 };
 
 class EnqueueWriteBufferCommand : public Command {
@@ -112,7 +130,6 @@ class EnqueueWriteBufferCommand : public Command {
     const void* src;
     uint32_t dst_page_index;
     uint32_t pages_to_write;
-    static constexpr EnqueueCommandType type_ = EnqueueCommandType::ENQUEUE_WRITE_BUFFER;
     uint32_t command_queue_channel;
    public:
     EnqueueWriteBufferCommand(
@@ -128,7 +145,7 @@ class EnqueueWriteBufferCommand : public Command {
 
     void process();
 
-    EnqueueCommandType type();
+    EnqueueCommandType type() { return EnqueueCommandType::ENQUEUE_WRITE_BUFFER; }
 };
 
 class EnqueueProgramCommand : public Command {
@@ -140,7 +157,6 @@ class EnqueueProgramCommand : public Command {
     const Program& program;
     SystemMemoryManager& manager;
     bool stall;
-    static constexpr EnqueueCommandType type_ = EnqueueCommandType::ENQUEUE_PROGRAM;
     std::optional<std::reference_wrapper<Trace>> trace = {};
 
    public:
@@ -150,7 +166,7 @@ class EnqueueProgramCommand : public Command {
 
     void process();
 
-    EnqueueCommandType type();
+    EnqueueCommandType type() { return EnqueueCommandType::ENQUEUE_PROGRAM; }
 };
 // write to address chosen by us for finish... that way we don't need
 // to mess with checking recv and acked
@@ -158,7 +174,6 @@ class FinishCommand : public Command {
    private:
     Device* device;
     SystemMemoryManager& manager;
-    static constexpr EnqueueCommandType type_ = EnqueueCommandType::FINISH;
     uint32_t command_queue_channel;
 
    public:
@@ -168,7 +183,7 @@ class FinishCommand : public Command {
 
     void process();
 
-    EnqueueCommandType type();
+    EnqueueCommandType type() { return EnqueueCommandType::FINISH; }
 };
 
 class EnqueueWrapCommand : public Command {
@@ -176,7 +191,6 @@ class EnqueueWrapCommand : public Command {
     Device* device;
     SystemMemoryManager& manager;
     DeviceCommand::WrapRegion wrap_region;
-    static constexpr EnqueueCommandType type_ = EnqueueCommandType::WRAP;
     uint32_t command_queue_channel;
 
    public:
@@ -186,7 +200,7 @@ class EnqueueWrapCommand : public Command {
 
     void process();
 
-    EnqueueCommandType type();
+    EnqueueCommandType type() { return EnqueueCommandType::ENQUEUE_WRAP; }
 };
 
 // Fwd declares
@@ -220,17 +234,21 @@ class Trace {
       void record(const TraceNode& trace_node);
 };
 
+namespace detail {
+void EnqueueRestart(CommandQueue& cq);
+}
+
 class CommandQueue {
    public:
 
     CommandQueue(Device* device, uint32_t command_queue_channel);
 
     ~CommandQueue();
+    CoreCoord producer_core;
+    CoreCoord consumer_core;
 
    private:
     // Program command_queue_program;
-    CoreCoord producer_core;
-    CoreCoord consumer_core;
 
     uint32_t command_queue_channel;
     uint32_t command_queue_channel_size;
@@ -272,7 +290,7 @@ class CommandQueue {
 
     void wrap(DeviceCommand::WrapRegion wrap_region, bool blocking);
 
-    void reset();
+    void restart();
 
     void launch(launch_msg_t& msg);
 
@@ -282,6 +300,7 @@ class CommandQueue {
     friend void EnqueueWriteBuffer(CommandQueue& cq, Buffer& buffer, const void* src, bool blocking);
     friend void EnqueueProgram(CommandQueue& cq, Program& program, bool blocking, std::optional<std::reference_wrapper<Trace>> trace);
     friend void Finish(CommandQueue& cq);
+    friend void detail::EnqueueRestart(CommandQueue& cq);
     friend void ClearProgramCache(CommandQueue& cq);
     friend CommandQueue &detail::GetCommandQueue(Device *device);
 

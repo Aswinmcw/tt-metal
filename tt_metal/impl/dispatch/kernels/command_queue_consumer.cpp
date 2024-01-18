@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tt_metal/impl/dispatch/kernels/command_queue_consumer.hpp"
+#include "debug/dprint.h"
 
 // The read interface for the issue region is set up on the device, the write interface belongs to host
 // Opposite for completion region where device sets up the write interface and host owns read interface
@@ -18,7 +19,7 @@ void kernel_main() {
 
     constexpr uint32_t host_completion_queue_write_ptr_addr = get_compile_time_arg_val(0);
     constexpr uint32_t completion_queue_start_addr = get_compile_time_arg_val(1);
-    constexpr uint32_t completion_queue_size = get_compile_time_arg_val(2);
+    uint32_t completion_queue_size = get_compile_time_arg_val(2);
     constexpr uint32_t host_finish_addr = get_compile_time_arg_val(3);
 
     volatile uint32_t* db_semaphore_addr = reinterpret_cast<volatile uint32_t*>(SEMAPHORE_BASE);
@@ -51,8 +52,18 @@ void kernel_main() {
         uint32_t producer_consumer_transfer_num_pages = command_ptr[DeviceCommand::producer_consumer_transfer_num_pages_idx];
         uint32_t sharded_buffer_num_cores = command_ptr[DeviceCommand::sharded_buffer_num_cores_idx];
         uint32_t wrap = command_ptr[DeviceCommand::wrap_idx];
+        uint32_t restart = command_ptr[DeviceCommand::restart_idx];
 
-        if ((DeviceCommand::WrapRegion)wrap == DeviceCommand::WrapRegion::COMPLETION) {
+        if (restart) {
+            completion_queue_size = command_ptr[DeviceCommand::new_completion_queue_size_idx];
+            setup_completion_queue_write_interface(completion_queue_start_addr, completion_queue_size);
+            db_buf_switch = false;
+            noc_semaphore_inc(producer_noc_encoding | get_semaphore(0), 1);
+            notify_host_of_completion_queue_write_pointer<host_completion_queue_write_ptr_addr>();
+            noc_async_write_barrier(); // Barrier for now
+            notify_host_complete<host_finish_addr>();
+            continue;
+        } else if ((DeviceCommand::WrapRegion)wrap == DeviceCommand::WrapRegion::COMPLETION) {
             cq_write_interface.completion_fifo_wr_ptr = completion_queue_start_addr >> 4;     // Head to the beginning of the completion region
             cq_write_interface.completion_fifo_wr_toggle = not cq_write_interface.completion_fifo_wr_toggle;
             notify_host_of_completion_queue_write_pointer<host_completion_queue_write_ptr_addr>();

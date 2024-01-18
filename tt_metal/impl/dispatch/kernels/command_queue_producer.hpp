@@ -5,6 +5,7 @@
 #include "tt_metal/impl/dispatch/kernels/command_queue_common.hpp"
 #include "tt_metal/hostdevcommon/common_values.hpp"
 #include "risc_attribs.h"
+#include "debug/dprint.h"
 
 CQReadInterface cq_read_interface;
 
@@ -17,6 +18,27 @@ inline __attribute__((always_inline)) volatile uint32_t* get_cq_issue_write_ptr(
 }
 
 FORCE_INLINE
+void wait_consumer_idle(volatile tt_l1_ptr uint32_t* db_semaphore_addr) {
+    while (*db_semaphore_addr != 2);
+}
+
+FORCE_INLINE
+void wait_consumer_space_available(volatile tt_l1_ptr uint32_t* db_semaphore_addr) {
+    while (*db_semaphore_addr == 0);
+}
+
+FORCE_INLINE
+void update_producer_consumer_sync_semaphores(uint64_t producer_noc_encoding, uint64_t consumer_noc_encoding, volatile tt_l1_ptr uint32_t* db_semaphore_addr) {
+    // Decrement the semaphore value
+    noc_semaphore_inc(producer_noc_encoding | uint32_t(db_semaphore_addr), -1);  // Two's complement addition
+    noc_async_write_barrier();
+
+    // Notify the consumer
+    noc_semaphore_inc(consumer_noc_encoding | get_semaphore(0), 1);
+    noc_async_write_barrier();  // Barrier for now
+}
+
+FORCE_INLINE
 void issue_queue_wait_front() {
     DEBUG_STATUS('N', 'Q', 'W');
     uint32_t issue_write_ptr_and_toggle;
@@ -26,6 +48,8 @@ void issue_queue_wait_front() {
         issue_write_ptr_and_toggle = *get_cq_issue_write_ptr();
         issue_write_ptr = issue_write_ptr_and_toggle & 0x7fffffff;
         issue_write_toggle = issue_write_ptr_and_toggle >> 31;
+        // for (volatile int i = 0; i < 1000000; i++);
+        // DPRINT << "MY FIFO PTR: " << cq_read_interface.issue_fifo_rd_ptr << ", WAITING ON " << issue_write_ptr << ENDL();
     } while (cq_read_interface.issue_fifo_rd_ptr == issue_write_ptr and cq_read_interface.issue_fifo_rd_toggle == issue_write_toggle);
     DEBUG_STATUS('N', 'Q', 'D');
 }
@@ -79,9 +103,6 @@ bool cb_producer_space_available(int32_t num_pages) {
     free_space_pages = (int32_t)free_space_pages_wrap;
     return free_space_pages >= num_pages;
 }
-
-//FORCE_INLINE
-//uint32_t min(uint32_t a, uint32_t b) { return (a < b) ? a: b; }
 
 FORCE_INLINE
 bool cb_consumer_space_available(bool db_buf_switch, int32_t num_pages) {
