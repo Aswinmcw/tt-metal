@@ -117,14 +117,12 @@ operation::ProgramWithCallbacks create_program(
     uint32_t start_core_y = 0;
     uint32_t num_cores_c = core_range.x;
     uint32_t num_cores_r = core_range.y;
+    uint32_t left_half_grid_x = num_cores_c > 1 ? num_cores_c / 2 : 1;
+    bool use_right_half_grid = num_cores_c > 1;
 
     CoreRange left_half{
         .start={(std::size_t) start_core_x, (std::size_t) start_core_y},
-        .end={(std::size_t) start_core_x + 5, (std::size_t) start_core_y + num_cores_r - 1}};
-
-    CoreRange right_half{
-        .start={(std::size_t) start_core_x + 6, (std::size_t) start_core_y},
-        .end={(std::size_t) start_core_x + num_cores_c - 1, (std::size_t) start_core_y + num_cores_r - 1}};
+        .end={(std::size_t) start_core_x + left_half_grid_x - 1, (std::size_t) start_core_y + num_cores_r - 1}};
 
     // Compile time args
     bool in0_is_dram = in0_buffer->buffer_type() == tt_metal::BufferType::DRAM ? 1 : 0;
@@ -167,19 +165,27 @@ operation::ProgramWithCallbacks create_program(
     );
 
     // right half
-    auto mm_kernel_in0_reader_other_noc_setup_id = tt_metal::CreateKernel(
-        program,
-        "tt_eager/tt_dnn/op_library/bmm/kernels/dataflow/reader_bmm_tile_layout_in0.cpp",
-        right_half,
-        tt_metal::DataMovementConfig{.processor = tt_metal::DataMovementProcessor::RISCV_1, .noc = detail::GetPreferredNOCForDRAMRead(device->arch()), .compile_args = reader_compile_time_args, .defines = mm_kernel_in0_reader_defines}
-    );
+    KernelHandle mm_kernel_in0_reader_other_noc_setup_id;
+    KernelHandle mm_kernel_in1_reader_writer_other_noc_setup_id;
+    if (use_right_half_grid) {
+        CoreRange right_half{
+            .start={(std::size_t) start_core_x + left_half_grid_x, (std::size_t) start_core_y},
+            .end={(std::size_t) start_core_x + num_cores_c - 1, (std::size_t) start_core_y + num_cores_r - 1}};
 
-    auto mm_kernel_in1_reader_writer_other_noc_setup_id = tt_metal::CreateKernel(
-        program,
-        "tt_eager/tt_dnn/op_library/bmm/kernels/dataflow/reader_writer_bmm_tile_layout_in1.cpp",
-        right_half,
-        tt_metal::DataMovementConfig{.processor = tt_metal::DataMovementProcessor::RISCV_0, .noc = detail::GetPreferredNOCForDRAMWrite(device->arch()), .compile_args = reader_writer_compile_time_args, .defines = mm_kernel_in1_reader_writer_defines}
-    );
+        mm_kernel_in0_reader_other_noc_setup_id = tt_metal::CreateKernel(
+            program,
+            "tt_eager/tt_dnn/op_library/bmm/kernels/dataflow/reader_bmm_tile_layout_in0.cpp",
+            right_half,
+            tt_metal::DataMovementConfig{.processor = tt_metal::DataMovementProcessor::RISCV_1, .noc = detail::GetPreferredNOCForDRAMRead(device->arch()), .compile_args = reader_compile_time_args, .defines = mm_kernel_in0_reader_defines}
+        );
+
+        mm_kernel_in1_reader_writer_other_noc_setup_id = tt_metal::CreateKernel(
+            program,
+            "tt_eager/tt_dnn/op_library/bmm/kernels/dataflow/reader_writer_bmm_tile_layout_in1.cpp",
+            right_half,
+            tt_metal::DataMovementConfig{.processor = tt_metal::DataMovementProcessor::RISCV_0, .noc = detail::GetPreferredNOCForDRAMWrite(device->arch()), .compile_args = reader_writer_compile_time_args, .defines = mm_kernel_in1_reader_writer_defines}
+        );
+    }
 
     vector<uint32_t> compute_kernel_args_group_1 = {
         in0_block_w, // in0_block_w
@@ -336,7 +342,7 @@ operation::ProgramWithCallbacks create_program(
         mm_writer_args[14] = num_blocks_written * num_tiles_per_block_out; // out_tensor_start_tile_id
 
         // left half
-        if (core_idx_x <= 5) {
+        if (core_idx_x < left_half_grid_x) {
             tt_metal::SetRuntimeArgs(program, mm_kernel_in0_reader_id, core, mm_reader_args);
             tt_metal::SetRuntimeArgs(program, mm_kernel_in1_reader_writer_id, core, mm_writer_args);
             reader_kernel_ids.push_back(mm_kernel_in0_reader_id);
