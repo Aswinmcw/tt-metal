@@ -271,6 +271,33 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
     for (int i=0; i<core_coords.size();++i){
         std::cout << core_coords[i].x << " " << core_coords[i].y << std::endl;
     }
+
+    std::vector<std::vector<CoreCoord> > core_coords2D;
+    if (shard_orientation == ShardOrientation::ROW_MAJOR) {
+        for (int i=0; i < num_cores_c / num_cores_per_group; ++i) {
+            for (int j=0; j < num_cores_r; ++j) {
+                std::vector<CoreCoord> temp;
+                for (int k=0; k < num_cores_per_group; ++k) {
+                    temp.push_back(CoreCoord{(std::size_t)(k + i * num_cores_per_group), (std::size_t)j});
+                }
+                core_coords2D.push_back(temp);
+            }
+        }
+    } else {
+        for (int i=0; i < num_cores_r / num_cores_per_group; ++i) {
+            for (int j=0; j < num_cores_c; ++j) {
+                std::vector<CoreCoord> temp;
+                for (int k=0; k < num_cores_per_group; ++k) {
+                    temp.push_back(CoreCoord{(std::size_t)j, (std::size_t)(k + i * num_cores_per_group)});
+                }
+                core_coords2D.push_back(temp);
+            }
+        }
+    }
+
+    for (int i=0; i<core_coords.size();++i){
+        std::cout << core_coords[i].x << " " << core_coords[i].y << std::endl;
+    }
     // one mcast core per batch per group
     std::set<CoreRange> mcast_sender_core_ranges;
     std::set<CoreRange> mcast_receiver_core_ranges;
@@ -298,14 +325,32 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
     // mcast groups
     std::vector<std::vector<CoreCoord> > mcast_groups;
     int group_index = -1;
-    for (int i=0; i < num_cores_r * num_cores_c; ++i) {
-        if (mcast_sender_core_ranges.find(CoreRange{core_coords[i]}) != mcast_sender_core_ranges.end()) {
-            group_index += 1;
+    // for (int i=0; i < num_cores_r * num_cores_c; ++i) {
+    //     if (mcast_sender_core_ranges.find(CoreRange{core_coords[i]}) != mcast_sender_core_ranges.end()) {
+    //         group_index += 1;
+    //     }
+    //     if (group_index >= mcast_groups.size()) {
+    //         mcast_groups.push_back(std::vector<CoreCoord>()); // Add a new group
+    //     }
+    //     mcast_groups[group_index].push_back(core_coords[i]);
+    // }
+    // for (int i=0; i<mcast_groups.size();++i){
+    //     std::cout << "mcast_groups " << std::endl;
+    //     for (int j=0; j<mcast_groups[i].size(); ++j) {
+    //         std::cout <<  mcast_groups[i][j].x << " " << mcast_groups[i][j].y << std::endl;
+    //     }
+    // }
+
+    for (int i=0; i < core_coords2D.size(); ++i) {
+        for (int j=0; j < core_coords2D[i].size(); ++j) {
+            if (mcast_sender_core_ranges.find(CoreRange{core_coords2D[i][j]}) != mcast_sender_core_ranges.end()) {
+                group_index += 1;
+            }
+            if (group_index >= mcast_groups.size()) {
+                mcast_groups.push_back(std::vector<CoreCoord>()); // Add a new group
+            }
+            mcast_groups[group_index].push_back(core_coords2D[i][j]);
         }
-        if (group_index >= mcast_groups.size()) {
-            mcast_groups.push_back(std::vector<CoreCoord>()); // Add a new group
-        }
-        mcast_groups[group_index].push_back(core_coords[i]);
     }
     for (int i=0; i<mcast_groups.size();++i){
         std::cout << "mcast_groups " << std::endl;
@@ -339,7 +384,6 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
     std::vector<uint32_t> reader_mcast_receiver_compile_time_args = {
         (std::uint32_t) reduce_receiver_semaphore,
         (std::uint32_t) reduce_sender_semaphore,
-        (std::uint32_t) num_cores_per_mcast_group,
         (std::uint32_t) num_batches_per_core * num_groups_per_core
     };
     // reader kernel
@@ -421,8 +465,14 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
     auto writer_mcast_sender_kernels_id = CreateKernel(
         program,
         writer_kernel,
-        all_cores,
+        mcast_sender_cores,
         tt_metal::WriterDataMovementConfig{.compile_args = writer_mcast_sender_compile_time_args, .defines = writer_defines}
+    );
+    auto writer_mcast_receiver_kernels_id = CreateKernel(
+        program,
+        writer_kernel,
+        mcast_receiver_cores,
+        tt_metal::WriterDataMovementConfig{.compile_args = writer_mcast_receiver_compile_time_args, .defines = writer_defines}
     );
     // defines
     std::map<string, string> eltwise_binary_defines;
@@ -442,7 +492,9 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
         num_subblocks_w,
         is_row_major_layout,
         per_core_Mt,
-        per_core_Nt
+        per_core_Nt,
+        per_core_Mt * per_core_Nt,
+        num_batches_per_core * block_ht * block_wt,
     };
     std::vector<uint32_t> mcast_receiver_compute_compile_time_args = {
         0,
@@ -459,7 +511,9 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
         num_subblocks_w,
         is_row_major_layout,
         per_core_Mt,
-        per_core_Nt
+        per_core_Nt,
+        per_core_Mt * per_core_Nt,
+        num_batches_per_core * block_ht * block_wt,
     };
     // compute kernel
     bool fp32_dest_acc_en = false;
@@ -530,9 +584,9 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
     auto cb_ex_partial = tt_metal::CreateCircularBuffer(program, all_cores, ex_cb_partial_config);
     // ex
     uint32_t ex_cb_index = CB::dataflow1;
-    tt_metal::CircularBufferConfig ex_cb_config = tt_metal::CircularBufferConfig(ex_CB_size, {{ex_cb_index, cb_data_format}})
-		.set_page_size(ex_cb_index, single_tile_size);
-    auto cb_ex = tt_metal::CreateCircularBuffer(program, all_cores, ex_cb_config);
+    // tt_metal::CircularBufferConfig ex_cb_config = tt_metal::CircularBufferConfig(ex_CB_size, {{ex_cb_index, cb_data_format}})
+	// 	.set_page_size(ex_cb_index, single_tile_size);
+    // auto cb_ex = tt_metal::CreateCircularBuffer(program, all_cores, ex_cb_config);
     // ex_external
     uint32_t ex_cb_external_index = CB::dataflow2;
     tt_metal::CircularBufferConfig ex_cb_external_config = tt_metal::CircularBufferConfig(ex_external_CB_size, {{ex_cb_external_index, cb_data_format}})
@@ -555,8 +609,17 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
     auto cb_ex_external2 = tt_metal::CreateCircularBuffer(program, all_cores, ex_cb_external2_config);
     // ex_global
     uint32_t ex_global_cb_index = CB::dataflow7;
-    tt_metal::CircularBufferConfig ex_global_cb_config = tt_metal::CircularBufferConfig(ex_global_CB_size, {{ex_global_cb_index, cb_data_format}})
-		.set_page_size(ex_global_cb_index, single_tile_size);
+    // tt_metal::CircularBufferConfig ex_global_cb_config = tt_metal::CircularBufferConfig(ex_global_CB_size, {{ex_global_cb_index, cb_data_format}})
+	// 	.set_page_size(ex_global_cb_index, single_tile_size);
+
+    std::map<uint8_t, tt::DataFormat> ex_global_cb_data_format_spec {
+        {ex_global_cb_index, cb_data_format},
+        {ex_cb_index, cb_data_format}
+    };
+    auto ex_global_cb_config = tt_metal::CircularBufferConfig(ex_global_CB_size, ex_global_cb_data_format_spec)
+        .set_page_size(ex_global_cb_index, single_tile_size)
+        .set_page_size(ex_cb_index, single_tile_size);
+
     auto cb_ex_global = tt_metal::CreateCircularBuffer(program, all_cores, ex_global_cb_config);
     // ex2pe
     uint32_t cb_ex2pe_index;
@@ -608,6 +671,10 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
                 CoreCoord mcast_start = device->worker_core_from_logical_core(group.front());
                 CoreCoord mcast_end = device->worker_core_from_logical_core(group.back());
 
+                if ((mcast_start.x < mcast_end.x) or (mcast_start.y < mcast_end.y)) {
+                    std::swap(mcast_start, mcast_end);
+                }
+
                 std::cout << "mcast start " << mcast_start.x << " " <<mcast_start.y << std::endl;
                 std::cout << "mcast mcast_end " << mcast_end.x << " " <<mcast_end.y << std::endl;
 
@@ -618,14 +685,21 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
                 mcast_sender_args.push_back(mcast_start.y);
                 mcast_sender_args.push_back(mcast_end.x);
                 mcast_sender_args.push_back(mcast_end.y);
+                mcast_sender_args.push_back(group.size());
 
                 if (not mcast_group_first.empty()) {
                     CoreCoord mcast_first_start = device->worker_core_from_logical_core(mcast_group_first.front());
                     CoreCoord mcast_first_end = device->worker_core_from_logical_core(mcast_group_first.back());
+
+                    if ((mcast_first_start.x < mcast_first_end.x) or (mcast_first_start.y < mcast_first_end.y)) {
+                        std::swap(mcast_first_start, mcast_first_end);
+                    }
+
                     mcast_sender_args.push_back(mcast_first_start.x);
                     mcast_sender_args.push_back(mcast_first_start.y);
                     mcast_sender_args.push_back(mcast_first_end.x);
                     mcast_sender_args.push_back(mcast_first_end.y);
+                    mcast_sender_args.push_back(mcast_group_first.size());
 
                     std::cout << "mcast mcast_first_start " << mcast_first_start.x << " " <<mcast_first_start.y << std::endl;
                     std::cout << "mcast mcast_first_end " << mcast_first_end.x << " " <<mcast_first_end.y << std::endl;
@@ -633,10 +707,16 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
                 if (not mcast_group_last.empty()) {
                     CoreCoord mcast_last_start = device->worker_core_from_logical_core(mcast_group_last.front());
                     CoreCoord mcast_last_end = device->worker_core_from_logical_core(mcast_group_last.back());
+
+                    if ((mcast_last_start.x < mcast_last_end.x) or (mcast_last_start.y < mcast_last_end.y)) {
+                        std::swap(mcast_last_start, mcast_last_end);
+                    }
+
                     mcast_sender_args.push_back(mcast_last_start.x);
                     mcast_sender_args.push_back(mcast_last_start.y);
                     mcast_sender_args.push_back(mcast_last_end.x);
                     mcast_sender_args.push_back(mcast_last_end.y);
+                    mcast_sender_args.push_back(mcast_group_last.size());
 
                     std::cout << "mcast mcast_last_start " << mcast_last_start.x << " " <<mcast_last_start.y << std::endl;
                     std::cout << "mcast mcast_last_end " << mcast_last_end.x << " " <<mcast_last_end.y << std::endl;
@@ -652,24 +732,38 @@ operation::ProgramWithCallbacks groupnorm_sharded_(
                 mcast_sender_args.insert(mcast_sender_args.end(), mcast_noc_xy.begin(), mcast_noc_xy.end());
                 tt_metal::SetRuntimeArgs(program, reader_mcast_sender_kernels_id, core, mcast_sender_args);
 
+                // writer
+                std::vector<uint32_t> writer_mcast_sender_args;
+                writer_mcast_sender_args.push_back(packed_cinv_value);
+                writer_mcast_sender_args.push_back(packed_winv_value);
+                writer_mcast_sender_args.push_back(e.u);
+                writer_mcast_sender_args.push_back(gamma_dram_addr);
+                writer_mcast_sender_args.push_back(beta_dram_addr);
+                writer_mcast_sender_args.push_back(gamma_tile_start_id);
+                writer_mcast_sender_args.push_back(beta_tile_start_id);
+                tt_metal::SetRuntimeArgs(program, writer_mcast_sender_kernels_id, core, writer_mcast_sender_args);
+                writer_kernel_ids.push_back(writer_mcast_sender_kernels_id);
+
             } else { // mcast receiver
                 std::vector<uint32_t> mcast_receiver_args;
-                mcast_receiver_args.push_back(group.front().x);
-                mcast_receiver_args.push_back(group.front().y);
+                mcast_receiver_args.push_back(device->worker_core_from_logical_core(group.front()).x);
+                mcast_receiver_args.push_back(device->worker_core_from_logical_core(group.front()).y);
                 tt_metal::SetRuntimeArgs(program, reader_mcast_receiver_kernels_id, core, mcast_receiver_args);
+
+                // writer
+                std::vector<uint32_t> writer_mcast_sender_args;
+                writer_mcast_sender_args.push_back(packed_cinv_value);
+                writer_mcast_sender_args.push_back(packed_winv_value);
+                writer_mcast_sender_args.push_back(e.u);
+                writer_mcast_sender_args.push_back(gamma_dram_addr);
+                writer_mcast_sender_args.push_back(beta_dram_addr);
+                writer_mcast_sender_args.push_back(gamma_tile_start_id);
+                writer_mcast_sender_args.push_back(beta_tile_start_id);
+                tt_metal::SetRuntimeArgs(program, writer_mcast_receiver_kernels_id, core, writer_mcast_sender_args);
+                writer_kernel_ids.push_back(writer_mcast_receiver_kernels_id);
             }
 
-            // writer
-            std::vector<uint32_t> writer_mcast_sender_args;
-            writer_mcast_sender_args.push_back(packed_cinv_value);
-            writer_mcast_sender_args.push_back(packed_winv_value);
-            writer_mcast_sender_args.push_back(e.u);
-            writer_mcast_sender_args.push_back(gamma_dram_addr);
-            writer_mcast_sender_args.push_back(beta_dram_addr);
-            writer_mcast_sender_args.push_back(gamma_tile_start_id);
-            writer_mcast_sender_args.push_back(beta_tile_start_id);
-            tt_metal::SetRuntimeArgs(program, writer_mcast_sender_kernels_id, core, writer_mcast_sender_args);
-            writer_kernel_ids.push_back(writer_mcast_sender_kernels_id);
+
         }
     }
 
