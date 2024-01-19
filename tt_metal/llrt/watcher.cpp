@@ -75,7 +75,7 @@ static FILE * create_file(const string& log_path) {
 
     FILE *f;
 
-    const char *fmode = getenv("TT_METAL_WATCHER_APPEND") ? "a" : "w";
+    const char *fmode = OptionsG.get_watcher_append()? "a" : "w";
     string fname = log_path + "watcher.log";
     if ((f = fopen(fname.c_str(), fmode)) == nullptr) {
         TT_THROW("Watcher failed to create log file\n");
@@ -412,6 +412,7 @@ static void validate_kernel_ids(FILE *f,
 static void dump_core(FILE *f, std::map<int, bool>& used_kernel_names, WatcherDevice *wdev, CoreCoord core, bool dump_all) {
 
     string pad(11 - core.str().length(), ' ');
+    fprintf(f, "Device %i, ", wdev->device_id_);
     fprintf(f, "Core %s:%s  ", core.str().c_str(), pad.c_str());
 
     std::vector<uint32_t> data;
