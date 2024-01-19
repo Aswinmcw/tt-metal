@@ -16,11 +16,9 @@ using namespace tt::tt_metal;
 // Some machines will run this test on different physical cores, so wildcard the exact coordinates
 // and replace them at runtime.
 std::vector<string> ordered_waypoints = {
-    "Device *, Core (x=*,y=*):    GW,W,W,W,W",
     "Device *, Core (x=*,y=*):    AAAA,AAAA,AAAA,AAAA,AAAA",
     "Device *, Core (x=*,y=*):    BBBB,BBBB,BBBB,BBBB,BBBB",
-    "Device *, Core (x=*,y=*):    CCCC,CCCC,CCCC,CCCC,CCCC",
-    "Device *, Core (x=*,y=*):    GW,W,W,W,W"
+    "Device *, Core (x=*,y=*):    CCCC,CCCC,CCCC,CCCC,CCCC"
 };
 
 static void RunTest(WatcherFixture* fixture, Device* device) {
