@@ -1012,4 +1012,12 @@ op_map = {
         "tt_lib_op": ttnn_ops.layernorm_noweights,
         "pytorch_op": pytorch_ops.ttnn_layernorm_noweights,
     },
+    "abs-bw": {
+        "tt_lib_op": tt_lib_ops.abs_bw,
+        "pytorch_op": pytorch_ops.abs_bw,
+    },
+    "sqrt-bw": {
+        "tt_lib_op": tt_lib_ops.sqrt_bw,
+        "pytorch_op": pytorch_ops.sqrt_bw,
+    },
 }

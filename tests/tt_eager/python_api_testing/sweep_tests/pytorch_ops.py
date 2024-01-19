@@ -1182,3 +1182,27 @@ def ttnn_layernorm_noweights(x, *args, **kwargs):
     w = x.shape[1]
     torch_output_tensor = torch.nn.functional.layer_norm(x, normalized_shape=[w])
     return torch_output_tensor
+
+
+def abs_bw(x, y, *args, **kwargs):
+    grad_data = x
+    in_data = y
+    in_data.requires_grad = True
+
+    in_data.retain_grad()
+    pyt_y = torch.abs(in_data)
+    pyt_y.backward(gradient=grad_data)
+
+    return in_data.grad
+
+
+def sqrt_bw(x, y, *args, **kwargs):
+    grad_data = x
+    in_data = y
+    in_data.requires_grad = True
+
+    in_data.retain_grad()
+    pyt_y = torch.sqrt(in_data)
+    pyt_y.backward(gradient=grad_data)
+
+    return in_data.grad
