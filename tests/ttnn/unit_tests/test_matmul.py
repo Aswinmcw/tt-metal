@@ -362,3 +362,94 @@ def test_height_sharded_matmul(device):
     output = ttnn.to_torch(output)
 
     assert_with_pcc(torch_output_tensor, output, pcc=0.999)
+
+
+@pytest.mark.parametrize(
+    "B, H, M, K, N, bcast_batch, in0_sharded_mem_config, in1_sharded_mem_config",
+    [
+        (
+            2,
+            3,
+            1600,
+            256,
+            1024,
+            True,
+            ttnn.create_block_sharded_memory_config((5, 8), [2 * 3 * 1600 // 5, 256 // 8]),
+            None,
+        ),  # mcast 2d
+        (
+            2,
+            3,
+            1600,
+            256,
+            1024,
+            True,
+            ttnn.create_block_sharded_memory_config(
+                (8, 5), [2 * 3 * 1600 // 5, 256 // 8], ttnn.ShardOrientation.COLUMN_MAJOR
+            ),
+            None,
+        ),  # mcast 2d transposed
+        (
+            2,
+            3,
+            64,
+            1024,
+            1024,
+            True,
+            ttnn.create_width_sharded_memory_config((7, 7), [2 * 3 * 64, 1024 // 8]),
+            None,
+        ),  # mcast in0
+        (
+            2,
+            3,
+            1600,
+            64,
+            64,
+            True,
+            ttnn.create_height_sharded_memory_config((7, 7), [2 * 3 * 1600 // 10, 64]),
+            None,
+        ),  # mcast in1
+        (
+            12,
+            16,
+            128,
+            64,
+            64,
+            False,
+            ttnn.create_height_sharded_memory_config((8, 12), [12 * 16 * 128 // 96, 64]),
+            ttnn.create_height_sharded_memory_config((8, 12), [12 * 16 * 64 // 96, 64]),
+        ),  # bmm
+    ],
+)
+def test_sharded_matmul(B, H, M, K, N, bcast_batch, in0_sharded_mem_config, in1_sharded_mem_config, device):
+    torch.manual_seed(0)
+
+    in0_shape = [B, H, M, K]
+    if bcast_batch:
+        in1_shape = [1, 1, K, N]
+    else:
+        in1_shape = [B, H, K, N]
+
+    torch_input_tensor_a = torch.randn(in0_shape)
+    torch_input_tensor_b = torch.randn(in1_shape)
+    torch_output_tensor = torch_input_tensor_a @ torch_input_tensor_b
+
+    input_tensor_a = ttnn.from_torch(torch_input_tensor_a.to(torch.bfloat16))
+    input_tensor_b = ttnn.from_torch(torch_input_tensor_b.to(torch.bfloat16))
+
+    input_tensor_a = ttnn.to_device(input_tensor_a, device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    input_tensor_b = ttnn.to_device(input_tensor_b, device, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+
+    input_tensor_a = ttnn.to_layout(input_tensor_a, ttnn.TILE_LAYOUT)
+    input_tensor_b = ttnn.to_layout(input_tensor_b, ttnn.TILE_LAYOUT)
+
+    input_tensor_a = ttnn.to_memory_config(input_tensor_a, in0_sharded_mem_config)
+    if in1_sharded_mem_config:
+        input_tensor_b = ttnn.to_memory_config(input_tensor_b, in1_sharded_mem_config)
+
+    output = ttnn.matmul(input_tensor_a, input_tensor_b, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+    output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
+    output = ttnn.from_device(output)
+    output = ttnn.to_torch(output)
+
+    assert_with_pcc(torch_output_tensor, output, pcc=0.999)
