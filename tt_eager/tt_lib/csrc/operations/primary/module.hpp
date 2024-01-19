@@ -17,6 +17,7 @@
 #include "tt_dnn/op_library/moreh_softmax/moreh_softmax_op.hpp"
 #include "tt_dnn/op_library/moreh_softmax_backward/moreh_softmax_backward_op.hpp"
 #include "tt_dnn/op_library/softmax/softmax_op.hpp"
+#include "tt_dnn/op_library/moreh_cumsum/moreh_cumsum_op.hpp"
 
 namespace py = pybind11;
 
@@ -496,6 +497,22 @@ void py_module(py::module& m_primary) {
         py::arg("strategy").noconvert() = MorehSoftmaxBackwardOpParallelizationStrategy::NONE,
         py::arg("output_mem_config").noconvert() = operation::DEFAULT_OUTPUT_MEMORY_CONFIG,
         "Performs a softmin backward operation. Returns a input grad tensor.");
+    m_primary.def(
+        "moreh_cumsum",
+        &moreh_cumsum,
+        py::arg("input").noconvert(),
+        py::arg("output").noconvert(),
+        py::kw_only(),
+        py::arg("dim").noconvert(),
+        "Performs cumsum operation. Returns an output tensor.");
+    m_primary.def(
+        "moreh_cumsum_backward",
+        &moreh_cumsum_backward,
+        py::arg("output_grad").noconvert(),
+        py::arg("input_grad").noconvert(),
+        py::kw_only(),
+        py::arg("dim").noconvert(),
+        "Performs cumsum backward operation. Returns an input_grad tensor.");
 }
 
 }  // namespace
