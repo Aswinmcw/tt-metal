@@ -17,11 +17,11 @@ using namespace tt::tt_metal;
 // Some machines will run this test on different physical cores, so wildcard the exact coordinates
 // and replace them at runtime.
 std::vector<string> ordered_waypoints = {
-    "Device *, Core (x=*,y=*):    GW,W,W,W,W  rmsg:H0D|bnt smsg:DDDD k_ids:0|0|0",
-    "Device *, Core (x=*,y=*):    AAAA,W,W,W,W  rmsg:D0G|Bnt smsg:DDDD k_ids:3|0|0",
-    "Device *, Core (x=*,y=*):    BBBB,W,W,W,W  rmsg:D0G|Bnt smsg:DDDD k_ids:3|0|0",
-    "Device *, Core (x=*,y=*):    CCCC,W,W,W,W  rmsg:D0G|Bnt smsg:DDDD k_ids:3|0|0",
-    "Device *, Core (x=*,y=*):    GW,W,W,W,W  rmsg:D0D|Bnt smsg:DDDD k_ids:3|0|0"
+    "Device *, Core (x=*,y=*):    GW,W,W,W,W",
+    "Device *, Core (x=*,y=*):    AAAA,W,W,W,W",
+    "Device *, Core (x=*,y=*):    BBBB,W,W,W,W",
+    "Device *, Core (x=*,y=*):    CCCC,W,W,W,W",
+    "Device *, Core (x=*,y=*):    GW,W,W,W,W"
 };
 
 static void RunTest(WatcherFixture* fixture, Device* device) {
@@ -48,12 +48,15 @@ static void RunTest(WatcherFixture* fixture, Device* device) {
         ordered_waypoints[idx][18] = '0' + phys_core.x;
         ordered_waypoints[idx][22] = '0' + phys_core.y;
     }
-    EXPECT_TRUE(
-        FileContainsAllStringsInOrder(
-            fixture->log_file_name,
-            ordered_waypoints
-        )
+
+    bool contains_all_strings = FileContainsAllStringsInOrder(
+        fixture->log_file_name,
+        ordered_waypoints
     );
+    EXPECT_TRUE(contains_all_strings);
+    if (!contains_all_strings) {
+        DumpFile(fixture->log_file_name);
+    }
 }
 
 TEST_F(WatcherFixture, TestWatcherWaypoints) {

@@ -102,6 +102,20 @@ inline bool FileContainsAllStringsInOrder(string file_name, const vector<string>
     return false;
 }
 
+// Helper function to dump a file
+inline void DumpFile(string file_name) {
+    std::fstream log_file;
+    if (!OpenFile(file_name, log_file, std::fstream::in)) {
+        tt::log_info(tt::LogTest, "File \'{}\' does not exist!", file_name);
+        return;
+    }
+
+    tt::log_info(tt::LogTest, "File \'{}\' contains:", file_name);
+    string line;
+    while (getline(log_file, line))
+        tt::log_info(tt::LogTest, "{}", line);
+}
+
 // Compare two strings with a (single-character) wildcard
 inline bool StringCompareWithWildcard(string& s1, string& s2, char wildcard) {
     if (s1.size() != s2.size())
