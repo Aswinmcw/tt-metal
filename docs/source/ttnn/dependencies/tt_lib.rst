@@ -738,6 +738,8 @@ Other Operations
 
 .. autofunction:: tt_lib.tensor.argmax
 
+.. autofunction:: tt_lib.tensor.argmin
+
 Backward Operations
 -------------------
 
