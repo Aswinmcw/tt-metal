@@ -667,7 +667,7 @@ namespace tt::tt_metal{
                     {"PRODUCER_NOC_X", std::to_string(remote_signaller_physical_core.x)},
                     {"PRODUCER_NOC_Y", std::to_string(remote_signaller_physical_core.y)},
                     {"DISPATCHER_NOC_X", std::to_string(dispatch_physical_core.x)},
-                    {"DISPATCHER_NOC_Y", std::to_string(dispatch_physical_core.x)},
+                    {"DISPATCHER_NOC_Y", std::to_string(dispatch_physical_core.y)},
                 };
 
                 tt::tt_metal::CreateKernel(
@@ -733,7 +733,7 @@ namespace tt::tt_metal{
                 tt::tt_metal::CreateKernel(
                     *command_queue_program_ptr,
                     "tt_metal/impl/dispatch/kernels/debug.cpp",
-                    dispatch_logical_core,
+                    remote_signaller_logical_core,
                     tt::tt_metal::DataMovementConfig {
                         .processor = tt::tt_metal::DataMovementProcessor::RISCV_0,
                         .noc = tt::tt_metal::NOC::RISCV_0_default,

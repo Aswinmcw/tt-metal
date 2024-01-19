@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tt_metal/impl/dispatch/kernels/command_queue_consumer.hpp"
-// #include "debug/dprint.h"
+#include "debug/dprint.h"
 
 // Dispatches fast dispatch commands to worker cores. Currently only runs on remote devices
 void kernel_main() {
@@ -22,6 +22,7 @@ void kernel_main() {
     bool db_rx_buf_switch = false;
     while (true) {
         // Wait for producer to supply a command
+        DPRINT << "remote dispatcher waiting for data at semaphore addr " << get_semaphore(0) << " value " << db_rx_semaphore_addr[0] << ENDL();
         db_acquire(db_rx_semaphore_addr, dispatcher_noc_encoding);
 
         // For each instruction, we need to jump to the relevant part of the device command
@@ -41,6 +42,15 @@ void kernel_main() {
         uint32_t producer_consumer_transfer_num_pages = command_ptr[DeviceCommand::producer_consumer_transfer_num_pages_idx];
         uint32_t sharded_buffer_num_cores = command_ptr[DeviceCommand::sharded_buffer_num_cores_idx];
         uint32_t wrap = command_ptr[DeviceCommand::wrap_idx];
+
+        DPRINT << "remote dispatcher kernel got:"
+            << " " << num_buffer_transfers
+            << " " << page_size
+            << " " << consumer_cb_size
+            << " " << consumer_cb_num_pages
+            << " " << num_pages
+            << " " << producer_consumer_transfer_num_pages
+            << " " << wrap << ENDL();
 
         // if ((DeviceCommand::WrapRegion)wrap == DeviceCommand::WrapRegion::COMPLETION) {
         //     // should this case make it to the R chip ... the completion queue interface is on the MMIO chip

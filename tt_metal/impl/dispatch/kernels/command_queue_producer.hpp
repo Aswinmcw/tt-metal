@@ -5,6 +5,7 @@
 #include "tt_metal/impl/dispatch/kernels/command_queue_common.hpp"
 #include "tt_metal/hostdevcommon/common_values.hpp"
 #include "risc_attribs.h"
+#include "debug/dprint.h"
 
 CQReadInterface cq_read_interface;
 
@@ -161,6 +162,7 @@ void relay_command(bool db_buf_switch, uint64_t consumer_noc_encoding) {
     */
 
     uint64_t consumer_command_slot_addr = consumer_noc_encoding | get_command_slot_addr<consumer_cmd_base_addr, consumer_data_buffer_size>(db_buf_switch);
+    DPRINT << "in relay cmd addr " << get_command_slot_addr<consumer_cmd_base_addr, consumer_data_buffer_size>(db_buf_switch) << ENDL();
     noc_async_write(L1_UNRESERVED_BASE, consumer_command_slot_addr, DeviceCommand::NUM_BYTES_IN_DEVICE_COMMAND);
     noc_async_write_barrier();
 }

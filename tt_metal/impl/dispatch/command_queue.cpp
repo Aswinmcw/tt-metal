@@ -543,7 +543,33 @@ void EnqueueWriteBufferCommand::process() {
 
     this->manager.issue_queue_push_back(cmd_size, LAZY_COMMAND_QUEUE_MODE, this->command_queue_id);
 
+    uint16_t channel = tt::Cluster::instance().get_assigned_channel_for_device(device->id());
+    tt_cxy_pair remote_signaller_location = dispatch_core_manager::get(device->num_hw_cqs()).remote_signaller_core(device->id(), channel, 0);
+    CoreCoord rs_physical_core = get_physical_core_coordinate(remote_signaller_location, CoreType::WORKER);
+    tt_cxy_pair remote_signaller_phys_location = tt_cxy_pair(remote_signaller_location.chip, rs_physical_core.x, rs_physical_core.y);
+    uint32_t cmd_address = get_command_start_l1_address(false);
+
     auto cmd_desc = cmd.get_desc();
+    std::cout << "Host command - "
+              << " data size: " << cmd_desc[DeviceCommand::data_size_idx]
+              << " num_buffer_transfers: " << cmd_desc[DeviceCommand::num_buffer_transfers_idx]
+              << " page_size: " << cmd_desc[DeviceCommand::page_size_idx]
+              << " producer_cb_size: " << cmd_desc[DeviceCommand::producer_cb_size_idx]
+              << " consumer_cb_size: " << cmd_desc[DeviceCommand::consumer_cb_size_idx]
+              << " producer_cb_num_pages: " << cmd_desc[DeviceCommand::producer_cb_num_pages_idx]
+              << " consumer_cb_num_pages: " << cmd_desc[DeviceCommand::consumer_cb_num_pages_idx]
+              << " num_pages: " << cmd_desc[DeviceCommand::num_pages_idx]
+              << " producer_consumer_transfer_num_pages: " << cmd_desc[DeviceCommand::producer_consumer_transfer_num_pages_idx] << std::endl;
+
+    std::cout << "Writing enqueue write buffer command to " << remote_signaller_phys_location.str()
+              << " at address: " << cmd_address << std::endl;
+
+    tt::Cluster::instance().write_core(
+        cmd.get_desc().data(),
+        DeviceCommand::NUM_BYTES_IN_DEVICE_COMMAND,
+        remote_signaller_phys_location,
+        cmd_address
+    );
 }
 
 EnqueueCommandType EnqueueWriteBufferCommand::type() { return this->type_; }

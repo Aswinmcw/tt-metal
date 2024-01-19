@@ -53,7 +53,7 @@ template <uint32_t cmd_base_address, uint32_t data_buffer_size>
 FORCE_INLINE uint32_t get_command_slot_addr(bool db_buf_switch) {
     static constexpr uint32_t command0_start = cmd_base_address;
     static constexpr uint32_t command1_start = command0_start + DeviceCommand::NUM_BYTES_IN_DEVICE_COMMAND + data_buffer_size;
-    return (db_buf_switch) ? command0_start : command1_start;
+    return (not db_buf_switch) ? command0_start : command1_start;
 }
 
 template <uint32_t cmd_base_address, uint32_t data_buffer_size>

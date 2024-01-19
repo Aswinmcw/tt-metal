@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tt_metal/impl/dispatch/kernels/command_queue_producer.hpp"
+#include "debug/dprint.h"
 
 void kernel_main() {
     constexpr uint32_t l1_go_flag_addr = get_compile_time_arg_val(0);
@@ -20,13 +21,13 @@ void kernel_main() {
 
     volatile tt_l1_ptr uint32_t* l1_go_flag_ptr = reinterpret_cast<volatile tt_l1_ptr uint32_t*>(l1_go_flag_addr);
 
-    uint32_t l1_go_flag_val;
-    do {
-        l1_go_flag_val = l1_go_flag_ptr[0];
-    } while (l1_go_flag_val != 1);
-
     bool db_buf_switch = false;
-    // while (true) {
+    while (true) {
+        DPRINT << "waiting for custom go signal from " << l1_go_flag_addr << ENDL();
+        uint32_t l1_go_flag_val;
+        do {
+            l1_go_flag_val = l1_go_flag_ptr[0];
+        } while (l1_go_flag_val != 1);
 
         uint32_t command_start_addr = get_command_slot_addr<cmd_start_addr, data_buffer_size>(db_buf_switch);
 
@@ -48,6 +49,21 @@ void kernel_main() {
         program_local_cb(data_section_addr, producer_cb_num_pages, page_size, producer_cb_size);
         while (db_semaphore_addr[0] == 0)
             ;  // Check that there is space in the consumer
+
+        DPRINT << "debug kernel got:"
+               << " " << data_size
+               << " " << num_buffer_transfers
+               << " " << page_size
+               << " " << producer_cb_size
+               << " " << consumer_cb_size
+               << " " << producer_cb_num_pages
+               << " " << consumer_cb_num_pages
+               << " " << num_pages
+               << " " << wrap
+               << " " << producer_consumer_transfer_num_pages
+               << " " << sharded_buffer_num_cores
+               << " " << finish << ENDL();
+
         program_consumer_cb<consumer_cmd_base_addr, consumer_data_buffer_size>(db_buf_switch, consumer_noc_encoding, consumer_cb_num_pages, page_size, consumer_cb_size);
         relay_command<consumer_cmd_base_addr, consumer_data_buffer_size>(db_buf_switch, consumer_noc_encoding);
 
@@ -92,9 +108,6 @@ void kernel_main() {
         //     command_ptr += DeviceCommand::NUM_ENTRIES_PER_BUFFER_TRANSFER_INSTRUCTION;
         // }
 
-
-
-
         // db_buf_switch = not db_buf_switch;
-    // }
+    }
 }

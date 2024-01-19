@@ -30,11 +30,13 @@ void kernel_main() {
     bool db_tx_buf_switch = false;
     while (true) {
         // Wait for ethernet router to supply a command
+        DPRINT << "remote cmd processor waiting for data" << ENDL();
         db_acquire(rx_semaphore_addr, processor_noc_encoding);
 
         // For each instruction, we need to jump to the relevant part of the device command
         uint32_t command_start_addr = get_command_slot_addr<cmd_base_addr, data_buffer_size>(rx_buf_switch);
         volatile tt_l1_ptr uint32_t* command_ptr = reinterpret_cast<volatile tt_l1_ptr uint32_t*>(command_start_addr);
+        DPRINT << "command start addr " << command_start_addr << ENDL();
 
         uint32_t num_buffer_transfers = command_ptr[DeviceCommand::num_buffer_transfers_idx];
         uint32_t stall = command_ptr[DeviceCommand::stall_idx];
@@ -47,10 +49,23 @@ void kernel_main() {
         uint32_t producer_consumer_transfer_num_pages = command_ptr[DeviceCommand::producer_consumer_transfer_num_pages_idx];
 
         // eth core should be programming the remote command processor CB?
+        DPRINT << "remote cmd processor kernel got:"
+               << " " << num_buffer_transfers
+               << " " << page_size
+               << " " << producer_cb_size
+               << " " << consumer_cb_size
+               << " " << producer_cb_num_pages
+               << " " << consumer_cb_num_pages
+               << " " << num_pages
+               << " " << producer_consumer_transfer_num_pages
+               << " " << stall << ENDL();
 
+        DPRINT << "rcp: db_tx_semaphore_addr is " << get_semaphore(1) << " value is " << db_tx_semaphore_addr[0] << ENDL();
         while (db_tx_semaphore_addr[0] == 0)
             ;  // Check that there is space in the dispatcher
+        DPRINT << "rcp: done waiting on db_tx_semaphore_addr" << ENDL();
         program_consumer_cb<dispatcher_cmd_base_addr, dispatcher_data_buffer_size>(db_tx_buf_switch, dispatcher_noc_encoding, consumer_cb_num_pages, page_size, consumer_cb_size);
+        DPRINT << "rcp: dispatcher_cmd_base_addr: " << dispatcher_cmd_base_addr << ENDL();
         relay_command<dispatcher_cmd_base_addr, dispatcher_data_buffer_size>(db_tx_buf_switch, dispatcher_noc_encoding);
         if (stall) {
             while (*db_tx_semaphore_addr != 2)
