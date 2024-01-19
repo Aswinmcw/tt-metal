@@ -94,7 +94,7 @@ class Tensor {
         Device *device() const { return this->buffer()->device(); }
         const MemoryConfig memory_config() const { return std::get<DeviceStorage>(this->storage_).memory_config(); }
 
-        const bool is_sharded() const { return this->memory_config().is_sharded(); }
+        const bool is_sharded() const { return this->storage_type() == StorageType::DEVICE ? this->memory_config().is_sharded() : false; }
 
         // Size in bytes of a single element held in tensor
         uint32_t element_size() const;
