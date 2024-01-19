@@ -81,7 +81,7 @@ uint64_t BankManager::allocate_buffer(uint32_t size, uint32_t page_size, bool bo
     bool is_sharded = false;
     if(num_shards.has_value()){
         is_sharded = true;
-        TT_FATAL(num_shards.value() < num_banks, "Expected number of shards to be less than total number of L1 banks");
+        TT_FATAL(num_shards.value() < num_banks, "Expected number of shards {} to be less than total number of L1 banks {}", num_shards.value(), num_banks);
         num_banks = num_shards.value();
     }
     // Each page needs to be at a 32B aligned address

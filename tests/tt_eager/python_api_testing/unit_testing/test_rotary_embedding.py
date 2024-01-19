@@ -67,7 +67,9 @@ def test_rotary_embedding_prefill(W, Z, Y, X, cache_size, in_sharded, out_sharde
             if num_blocks % i == 0:
                 num_cores = i
                 break
-
+        logger.info(num_blocks)
+        logger.info(num_cores)
+        logger.info(compute_grid_size.x * compute_grid_size.y)
         if in_sharded:
             Ht = divup(num_blocks, num_cores)
             shard_grid = ttl.tensor.CoreRangeSet(
