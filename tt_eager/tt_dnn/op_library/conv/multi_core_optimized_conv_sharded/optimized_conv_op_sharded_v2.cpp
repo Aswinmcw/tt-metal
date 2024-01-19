@@ -552,12 +552,12 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_sharded_v2_(const Tens
     if (fully_buffer_weights) {
         num_weight_cb_tiles *= window_outer;
     } else if (per_core_weight_matrix_width_ntiles < 8) {
-        num_weight_cb_tiles = num_weight_cb_tiles * 2;
+        num_weight_cb_tiles = num_weight_cb_tiles;
     }
     if (conv_act_size_c / conv_act_c_blocks < 256) {
-        num_act_cb_tiles = num_act_cb_tiles * 2; // double buffered
+        num_act_cb_tiles = num_act_cb_tiles; // double buffered
     }
-
+    cout << "here" << endl;
     uint32_t writer_output_block_num_tiles = out_block_h_ntiles * weight_block_w_ntiles;
 
     // TODO: Moving this function call to after kernel logic causes pcc fails
@@ -876,7 +876,7 @@ operation::ProgramWithCallbacks multi_core_optimized_conv_sharded_v2_(const Tens
                 conv_act_size_h,
                 weight_size_h,
                 weight_size_w,
-
+                num_blocks_act_h_per_core,
                 act_block_h_datums,
                 in0_block_num_tiles,
                 conv_act_c_blocks,

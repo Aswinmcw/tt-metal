@@ -181,6 +181,9 @@ def determine_parallel_config(
         per_core_out_matrix_height_ntiles=per_core_out_matrix_height_ntiles,
         per_core_weight_matrix_width_ntiles=per_core_out_matrix_width_ntiles,
     )
+    print("grid_size=", grid_size)
+    print("per_core_out_matrix_height=", per_core_out_matrix_height_ntiles)
+    print("per_core_out_matrix_width=", per_core_out_matrix_width_ntiles)
     return conv_parallelization_config, num_cores_nhw
 
 
