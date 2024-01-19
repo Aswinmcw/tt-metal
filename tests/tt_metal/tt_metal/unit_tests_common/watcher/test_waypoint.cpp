@@ -4,7 +4,6 @@
 
 #include "watcher_fixture.hpp"
 #include "test_utils.hpp"
-#include "llrt/llrt.hpp"
 #include "tt_metal/detail/tt_metal.hpp"
 #include "tt_metal/host_api.hpp"
 
@@ -18,9 +17,9 @@ using namespace tt::tt_metal;
 // and replace them at runtime.
 std::vector<string> ordered_waypoints = {
     "Device *, Core (x=*,y=*):    GW,W,W,W,W",
-    "Device *, Core (x=*,y=*):    AAAA,W,W,W,W",
-    "Device *, Core (x=*,y=*):    BBBB,W,W,W,W",
-    "Device *, Core (x=*,y=*):    CCCC,W,W,W,W",
+    "Device *, Core (x=*,y=*):    AAAA,AAAA,AAAA,AAAA,AAAA",
+    "Device *, Core (x=*,y=*):    BBBB,BBBB,BBBB,BBBB,BBBB",
+    "Device *, Core (x=*,y=*):    CCCC,CCCC,CCCC,CCCC,CCCC",
     "Device *, Core (x=*,y=*):    GW,W,W,W,W"
 };
 
@@ -31,11 +30,23 @@ static void RunTest(WatcherFixture* fixture, Device* device) {
     // Run a kernel that posts waypoints and waits on certain gating values to be written before
     // posting the next waypoint.
     constexpr CoreCoord core = {0, 0}; // Run kernel on first core
-    KernelHandle kernel_id = CreateKernel(
+    CreateKernel(
         program,
         "tests/tt_metal/tt_metal/test_kernels/misc/watcher_waypoints.cpp",
         core,
         DataMovementConfig{.processor = DataMovementProcessor::RISCV_0, .noc = NOC::RISCV_0_default}
+    );
+    CreateKernel(
+        program,
+        "tests/tt_metal/tt_metal/test_kernels/misc/watcher_waypoints.cpp",
+        core,
+        DataMovementConfig{.processor = DataMovementProcessor::RISCV_1, .noc = NOC::RISCV_1_default}
+    );
+    CreateKernel(
+        program,
+        "tests/tt_metal/tt_metal/test_kernels/misc/watcher_waypoints.cpp",
+        core,
+        ComputeConfig{}
     );
 
     // Run the program in a new thread, we'll have to update gate values in this thread.
