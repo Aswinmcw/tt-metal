@@ -73,11 +73,11 @@ operation::ProgramWithCallbacks pad_rm_reader_writer(const Tensor &a,
     uint32_t packed_pad_value = pack_two_bfloat16_into_uint32({bfloat_zero, bfloat_pad_value});
 
     KernelHandle reader_kernel_id = CreateKernel(program,
-                                                        "tt_eager/tt_dnn/kernels/dataflow/reader_pad_dims_rm_interleaved.cpp",
+                                                        "tt_eager/tt_dnn/op_library/pad/kernels/dataflow/reader_pad_dims_rm_interleaved.cpp",
                                                         cores,
                                                         ReaderDataMovementConfig{.compile_args = reader_ct_args});
     KernelHandle writer_kernel_id = CreateKernel(program,
-                                                        "tt_eager/tt_dnn/kernels/dataflow/writer_pad_dims_rm_interleaved.cpp",
+                                                        "tt_eager/tt_dnn/op_library/pad/kernels/dataflow/writer_pad_dims_rm_interleaved.cpp",
                                                         cores,
                                                         WriterDataMovementConfig{.compile_args = writer_ct_args});
     uint32_t padded_row_diff_size_nbytes = padded_row_size_nbytes - unpadded_row_size_nbytes;
@@ -215,7 +215,7 @@ operation::ProgramWithCallbacks pad_rm_opt(const Tensor &a,
 
     CoreRange core = {.start={0, 0}, .end={0, 0}};
     KernelHandle reader_kernel_id = CreateKernel(program,
-                                                        "tt_eager/tt_dnn/kernels/dataflow/pad_dims_rm_interleaved_opt.cpp",
+                                                        "tt_eager/tt_dnn/op_library/pad/kernels/dataflow/pad_dims_rm_interleaved_opt.cpp",
                                                         core,
                                                         ReaderDataMovementConfig{.compile_args = reader_ct_args});
     uint32_t padded_row_diff_size_nbytes = padded_row_size_nbytes - unpadded_row_size_nbytes;
@@ -352,7 +352,7 @@ operation::ProgramWithCallbacks pad_rm(const Tensor &a, Tensor &output, const Sh
     // Tilized reader
     tt_metal::KernelHandle unary_reader_kernel_id = tt_metal::CreateKernel(
         program,
-        "tt_eager/tt_dnn/kernels/dataflow/pad_dims_rm_interleaved.cpp",
+        "tt_eager/tt_dnn/op_library/pad/kernels/dataflow/pad_dims_rm_interleaved.cpp",
         core,
         tt_metal::ReaderDataMovementConfig{.compile_args = compile_time_args_vec});
 
@@ -473,7 +473,7 @@ operation::ProgramWithCallbacks pad_tile(const Tensor &a, Tensor& output, const 
 
     tt_metal::KernelHandle unary_writer_kernel_id = tt_metal::CreateKernel(
         program,
-        "tt_eager/tt_dnn/kernels/dataflow/writer_unary_pad_dims_interleaved.cpp",
+        "tt_eager/tt_dnn/op_library/pad/kernels/dataflow/writer_unary_pad_dims_interleaved.cpp",
         core,
         tt_metal::WriterDataMovementConfig{.compile_args = writer_compile_time_args});
 
@@ -592,11 +592,7 @@ tt::stl::reflection::Attributes Pad::attributes() const {
 
 Tensor pad(const Tensor &input_tensor, const Shape &output_tensor_shape, const Shape &input_tensor_start, float pad_value, const MemoryConfig& output_mem_config, bool use_multicore) {
     if (input_tensor.shape() == output_tensor_shape) {
-        if (input_tensor.memory_config() != output_mem_config) {
-            return clone(input_tensor, output_mem_config);
-        } else {
-            return input_tensor;
-        }
+        return AutoFormat::move_tensor_to_mem_config(input_tensor, output_mem_config);
     }
     return operation::run_without_autoformat(Pad{output_tensor_shape, input_tensor_start, pad_value, output_mem_config, use_multicore}, {input_tensor}).at(0);
 
@@ -604,7 +600,7 @@ Tensor pad(const Tensor &input_tensor, const Shape &output_tensor_shape, const S
 
 void PadOnHost::validate(const std::vector<Tensor> &input_tensors) const {
     const auto& input_tensor = input_tensors.at(0);
-    TT_FATAL(input_tensor.storage_type() == StorageType::OWNED or input_tensor.storage_type() == StorageType::BORROWED);
+    TT_FATAL(input_tensor.storage_type() != StorageType::DEVICE);
     TT_FATAL(input_tensor.layout() == Layout::ROW_MAJOR);
     TT_FATAL(input_tensor.shape()[0] + this->input_tensor_start[0] <= this->output_tensor_shape[0], "Output size cannot fit input with offset");
     TT_FATAL(input_tensor.shape()[1] + this->input_tensor_start[1] <= this->output_tensor_shape[1], "Output size cannot fit input with offset");

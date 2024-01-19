@@ -10,9 +10,9 @@
 #include "tt_metal/impl/allocator/basic_allocator.hpp"
 #include "tt_metal/impl/allocator/l1_banking_allocator.hpp"
 #include "tt_metal/jit_build/build.hpp"
-#include "tt_metal/impl/dispatch/command_queue_interface.hpp"
 #include "llrt/tt_cluster.hpp"
 #include "dev_msgs.h"
+#include "tt_metal/impl/dispatch/command_queue_interface.hpp"
 
 namespace tt {
 
@@ -24,6 +24,16 @@ class Buffer;
 class Program;
 class JitBuildEnv;
 class CommandQueue;
+
+namespace detail {
+// TODO(agrebenisan): Need device to hold onto command queue programs,
+// but the Program type is incomplete by this point. I can have
+// a unique_ptr of incomplete type as long as I override the default
+// delete function.
+struct ProgramDeleter {
+    void operator()(Program* p);
+};
+}
 
 using on_close_device_callback = std::function<void ()>;
 
@@ -135,8 +145,8 @@ class Device {
     // Set of logical storage only core coordinates
     const std::set<CoreCoord> &storage_only_cores() const { return this->storage_only_cores_; }
 
-    const std::set<CoreCoord> &producer_cores() const { return this->producer_cores_; }
-    const std::set<CoreCoord> &consumer_cores() const { return this->consumer_cores_; }
+    std::unique_ptr<SystemMemoryManager> manager;
+    vector<std::unique_ptr<Program, tt::tt_metal::detail::ProgramDeleter>> command_queue_programs;
 
     // Set of logical dispatch core coordinates
 
@@ -169,6 +179,7 @@ class Device {
     void build_firmware();
     void initialize_firmware(CoreCoord phys_core, launch_msg_t *launch_msg);
     void initialize_and_launch_firmware();
+    void initialize_command_queue();
     void clear_l1_state();
 
     std::pair<int, int> build_processor_type_to_index(JitBuildProcessorType t) const;
@@ -180,6 +191,7 @@ class Device {
     // TODO: Uplift usage of friends. Buffer and Program just need access to allocator
     friend class Buffer;
     friend class Program;
+    friend class SystemMemoryManager;
 
     static constexpr MemoryAllocator allocator_scheme_ = MemoryAllocator::L1_BANKING;
     static ActiveDevices active_devices_;
@@ -191,15 +203,8 @@ class Device {
     JitBuildStateSet firmware_build_states_;
     JitBuildStateSet kernel_build_states_;
 
-    // SystemMemoryManager is the interface to the hardware command queue
-    std::unique_ptr<SystemMemoryManager> sysmem_manager;
-    // Allows access to sysmem_writer
-    friend class CommandQueue;
-
     std::set<CoreCoord> compute_cores_;
     std::set<CoreCoord> storage_only_cores_;
-    std::set<CoreCoord> producer_cores_;
-    std::set<CoreCoord> consumer_cores_;
     std::set<CoreCoord> ethernet_cores_;
 
     const uint8_t num_hw_cqs_;

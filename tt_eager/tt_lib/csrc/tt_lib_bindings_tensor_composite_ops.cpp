@@ -25,8 +25,7 @@ namespace tt::tt_metal::detail{
                         "shape", "Shape value", "Shape", "The number of times to repeat this tensor along each dimension", "Yes"
                         "output_mem_config", "Layout of tensor in TT Accelerator device memory banks", "MemoryConfig", "Default is interleaved in DRAM", "No"
                 )doc");
-
-	m_tensor.def("power_fp", &tt::tt_metal::power_fp,
+	m_tensor.def("pow", py::overload_cast<const Tensor&, float, const MemoryConfig&>(&tt::tt_metal::pow),
 		     py::arg("input"), py::arg("exponent"), py::arg("output_mem_config").noconvert() = operation::DEFAULT_OUTPUT_MEMORY_CONFIG, R"doc(
                     Returns a new tensor filled with power of input ``input`` raised to value of ``exponent``.
 
@@ -39,7 +38,19 @@ namespace tt::tt_metal::detail{
                         "exponent", "exponent value", "float", "positive floating point value", "Yes"
                         "output_mem_config", "Layout of tensor in TT Accelerator device memory banks", "MemoryConfig", "Default is interleaved in DRAM", "No"
                 )doc");
+    m_tensor.def("pow", py::overload_cast<const Tensor&, int, const MemoryConfig&>(&tt::tt_metal::pow),
+		     py::arg("input"), py::arg("exponent"), py::arg("output_mem_config").noconvert() = operation::DEFAULT_OUTPUT_MEMORY_CONFIG, R"doc(
+                    Returns a new tensor filled with power of input ``input`` raised to value of ``exponent``.
 
+                    Output tensor will have BFLOAT16 data type.
+
+                    .. csv-table::
+                        :header: "Argument", "Description", "Data type", "Valid range", "Required"
+
+                        "input", "Input tensor for which power is computed", "Tensor", "Tensor of any shape", "Yes"
+                        "exponent", "exponent value", "integer", "positive integer value", "Yes"
+                        "output_mem_config", "Layout of tensor in TT Accelerator device memory banks", "MemoryConfig", "Default is interleaved in DRAM", "No"
+                )doc");
         m_tensor.def("sfpu_eps", &tt::tt_metal::sfpu_eps,
                 py::arg("shape"), py::arg("layout").noconvert() = Layout::ROW_MAJOR, py::arg("device") = nullptr, py::arg("output_mem_config").noconvert() = operation::DEFAULT_OUTPUT_MEMORY_CONFIG, R"doc(
                     Returns a new tensor filled with the machine epsilon value in shape specified by input ``shape``.
@@ -120,7 +131,7 @@ namespace tt::tt_metal::detail{
 
             ``tanhshrink(x) = x - tanh(x)``)doc"
         );
-        detail::bind_unary_op(m_tensor, "digamma", &digamma, R"doc(Computes the logarithmic derivative of the gamma function on input tensor ``{0}``.)doc");
+        detail::bind_unary_op(m_tensor, "digamma", &digamma, R"doc(Computes the logarithmic derivative of the gamma function on input tensor ``{0}`` for the input range 1 to inf.)doc");
         detail::bind_unary_op(m_tensor, "lgamma", &lgamma, R"doc(Computes the natural logarithm of the absolute value of the gamma function on the  ``{0}`` tensor for inputs greater than 0.)doc");
         detail::bind_unary_op(m_tensor, "multigammaln", &multigammaln, R"doc(Computes the multivariate log-gamma function with dimension 4 element-wise on the input tensor ``{0}`` for inputs greater than 1.5f.)doc");
 

@@ -13,7 +13,6 @@ import ttnn
 from ttnn.model_preprocessing import (
     preprocess_linear_weight,
     preprocess_linear_bias,
-    pad_tensor,
 )
 
 BLOOM_MEMORY_CONFIG = ttnn.L1_MEMORY_CONFIG
@@ -69,9 +68,8 @@ def build_alibi_tensor(attention_mask: torch.Tensor, num_heads: int, dtype: torc
 def split_query_key_value_and_split_heads(
     query_key_value: torch.Tensor, num_heads: int
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    batch_size, *_ = query_key_value.shape
     output = ttnn.transformer.split_query_key_value_and_split_heads(
-        query_key_value, core_grid=(batch_size, 12), memory_config=BLOOM_MEMORY_CONFIG, num_heads=num_heads
+        query_key_value, memory_config=BLOOM_MEMORY_CONFIG, num_heads=num_heads
     )
     return output
 
@@ -320,7 +318,6 @@ def preprocess_inputs(
 
     alibi = build_alibi_tensor(attention_mask, num_heads, dtype=torch.float)
     alibi = ttnn.from_torch(alibi, dtype=ttnn.bfloat16)
-    alibi = pad_tensor(alibi)
     alibi = ttnn.to_layout(alibi, ttnn.TILE_LAYOUT)
     alibi = ttnn.to_device(alibi, device)
 

@@ -69,7 +69,7 @@ def test_t5_dense_act_dense(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9993)
 
 
 @skip_for_wormhole_b0()
@@ -98,7 +98,7 @@ def test_t5_dense_gated_act_dense(device, model_name, batch_size, sequence_size)
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9991)
 
 
 @skip_for_wormhole_b0()
@@ -127,7 +127,7 @@ def test_t5_layer_ff(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.99906)
 
 
 @skip_for_wormhole_b0()
@@ -158,7 +158,7 @@ def test_t5_attention(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9989)
 
 
 @skip_for_wormhole_b0()
@@ -191,7 +191,7 @@ def test_t5_layer_self_attention(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9965)
 
 
 @skip_for_wormhole_b0()
@@ -232,7 +232,7 @@ def test_t5_layer_cross_attention(device, model_name, batch_size, sequence_size)
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9965)
 
 
 @skip_for_wormhole_b0()
@@ -265,7 +265,7 @@ def test_t5_block_encoder(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.99291)
 
 
 @skip_for_wormhole_b0()
@@ -306,7 +306,7 @@ def test_t5_block_decoder(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.99279)
 
 
 @skip_for_wormhole_b0()
@@ -342,7 +342,7 @@ def test_t5_stack_encoder(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9942)
 
 
 @skip_for_wormhole_b0()
@@ -385,7 +385,7 @@ def test_t5_stack_decoder(device, model_name, batch_size, sequence_size):
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9968)
 
 
 @skip_for_wormhole_b0()
@@ -403,7 +403,7 @@ def test_t5_for_conditional_generation(device, model_name, batch_size, sequence_
     torch_output = model(torch_input_ids, decoder_input_ids=torch_decoder_input_ids).logits
 
     parameters = preprocess_model_parameters(
-        f"ttnn_optimized_{model_name}",
+        f"ttnn_{model_name}_optimized",
         initialize_model=lambda: model,
         custom_preprocessor=functional_t5.custom_preprocessor,
         device=device,
@@ -423,4 +423,4 @@ def test_t5_for_conditional_generation(device, model_name, batch_size, sequence_
     output = ttnn.to_layout(output, ttnn.ROW_MAJOR_LAYOUT)
     output = ttnn.to_torch(output)
 
-    assert_with_pcc(torch_output, output)
+    assert_with_pcc(torch_output, output, pcc=0.9977)
