@@ -266,7 +266,7 @@ def repeat_interleave(tensor: ttnn.Tensor, repeats: Union[ttnn.Tensor, int], dim
     device = tensor.device
     layout = tensor.layout
 
-    output_tensor = _torch_repeat_interleave(tensor, repeats, dim=0)
+    output_tensor = _torch_repeat_interleave(tensor, repeats, dim=dim)
 
     return ttnn.from_torch(output_tensor, dtype=dtype, device=device, layout=layout)
 
