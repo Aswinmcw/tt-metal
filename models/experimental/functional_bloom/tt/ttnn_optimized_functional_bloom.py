@@ -211,12 +211,11 @@ def bloom(
         layout=ttnn.TILE_LAYOUT,
     )
 
-    # TODO(arakhmati): put hidden_states in L1
     hidden_states = ttnn.layer_norm(
         inputs_embeds,
         weight=parameters.transformer.word_embeddings_layernorm.weight,
         bias=parameters.transformer.word_embeddings_layernorm.bias,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+        memory_config=BLOOM_MEMORY_CONFIG,
     )
     ttnn.deallocate(inputs_embeds)
 
@@ -240,8 +239,7 @@ def bloom(
         )
         ttnn.deallocate(normalized_hidden_states)
 
-        # TODO(arakhmati): put attention_output in L1
-        attention_output = ttnn.add(attention_output, hidden_states, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+        attention_output = ttnn.add(attention_output, hidden_states, memory_config=BLOOM_MEMORY_CONFIG)
         ttnn.deallocate(hidden_states)
 
         normalized_attention_output = ttnn.layer_norm(
@@ -260,8 +258,7 @@ def bloom(
         )
         ttnn.deallocate(normalized_attention_output)
 
-        # TODO(arakhmati): put mlp_output in L1
-        mlp_output = ttnn.add(mlp_output, attention_output, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+        mlp_output = ttnn.add(mlp_output, attention_output, memory_config=BLOOM_MEMORY_CONFIG)
         ttnn.deallocate(attention_output)
 
         hidden_states = mlp_output
