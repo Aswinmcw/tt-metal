@@ -57,6 +57,7 @@ constexpr uint16_t DEBUG_SANITIZE_NOC_SENTINEL_OK_16 = 0xbada;
 static bool enabled = false;
 static std::mutex watch_mutex;
 static std::unordered_map<void *, std::shared_ptr<WatcherDevice>> devices;
+static string logfile_path = "";
 static FILE *logfile = nullptr;
 static std::chrono::time_point start_time = std::chrono::system_clock::now();
 static std::vector<string> kernel_names;
@@ -611,6 +612,7 @@ void watcher_attach(void *dev,
 
     if (!watcher::enabled && OptionsG.get_watcher_enabled()) {
 
+        watcher::logfile_path = log_path;
         watcher::logfile = watcher::create_file(log_path);
 
         int sleep_usecs = OptionsG.get_watcher_interval() * 1000;
@@ -663,6 +665,10 @@ int watcher_register_kernel(const string& name) {
     watcher::kernel_names.push_back(name);
 
     return watcher::kernel_names.size() - 1;
+}
+
+void watcher_clear_log() {
+    watcher::logfile = watcher::create_file(watcher::logfile_path);
 }
 
 } // namespace llrt

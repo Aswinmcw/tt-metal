@@ -5,6 +5,7 @@
 #include <chrono>
 #include <thread>
 #include "common_fixture.hpp"
+#include "llrt/watcher.hpp"
 
 // A version of CommonFixture with watcher enabled
 class WatcherFixture: public CommonFixture {
@@ -58,6 +59,6 @@ protected:
         CommonFixture::RunTestOnDevice(run_function_no_args, device);
         // Wait for a final watcher poll and then clear the log.
         std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms));
-        std::remove(log_file_name.c_str());
+        tt::llrt::watcher_clear_log();
     }
 };
