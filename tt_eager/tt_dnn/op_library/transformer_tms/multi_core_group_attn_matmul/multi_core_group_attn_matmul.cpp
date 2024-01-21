@@ -79,11 +79,12 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
     // Mcast args
     auto in1_mcast_sender_semaphore = tt_metal::CreateSemaphore(program, all_device_cores, INVALID);
     auto in1_mcast_receiver_semaphore = tt_metal::CreateSemaphore(program, all_device_cores, INVALID);
-    CoreRange all_cores_grid = all_cores.bounding_box();
-    CoreCoord top_left_core = all_cores_grid.start;
-    CoreCoord bottom_right_core = all_cores_grid.end;
-    auto top_left_core_physical = device->worker_core_from_logical_core(top_left_core);
-    auto bottom_right_core_physical = device->worker_core_from_logical_core(bottom_right_core);
+    CoreRange mcast_grid = all_cores.bounding_box();
+    uint32_t mcast_num_cores = mcast_grid.size();
+    CoreCoord top_left_core = mcast_grid.start;
+    CoreCoord bottom_right_core = mcast_grid.end;
+    CoreCoord top_left_core_physical = device->worker_core_from_logical_core(top_left_core);
+    CoreCoord bottom_right_core_physical = device->worker_core_from_logical_core(bottom_right_core);
 
     uint32_t src0_cb_index = CB::c_in0;
     uint32_t cb0_num_input_tiles = Kt * 2;
@@ -167,8 +168,40 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
         tt_metal::ComputeConfig{.math_fidelity = math_fidelity, .compile_args = compute_args}
     );
 
+    std::vector<uint32_t> reader_runtime_args = {
+        src0_addr,
+        src1_addr,
+        Mt,
+        Kt,
+        Nt,
+        MtKt,
+        in1_KtNt_skip, // Skip to get next batch for in1 after reading in0 Kt
+        in1_KtNt_stride * TILE_HEIGHT, // in1 stride; skips 32 * KtNt in bshape[0] for one block of MtNt
+        0, // blocks of work
+        0, // in0_start_id
+        0, // in1_start_id; always read in same in1 per core TODO: multi-cast
+
+        // mcast args
+        (uint32_t) top_left_core_physical.x, // in1_mcast_dest_noc_start_x
+        (uint32_t) top_left_core_physical.y, // in1_mcast_dest_noc_start_y
+        (uint32_t) bottom_right_core_physical.x, // in1_mcast_dest_noc_end_x
+        (uint32_t) bottom_right_core_physical.y, // in1_mcast_dest_noc_end_y
+        num_cores - 1,
+        mcast_num_cores - 1,
+        in1_mcast_sender_semaphore,
+        in1_mcast_receiver_semaphore,
+        in1_single_tile_size, // act_mcast_sender_size_bytes
+        //core_y_i, // act_mcast_sender_id (goes down the column)
+        //i, // act_mcast_sender_noc_x
+    };
+
+    constexpr uint32_t blocks_vector_idx = 8;
+    constexpr uint32_t in0_start_id_vector_idx = 9;
+    uint32_t reader_runtime_args_size = reader_runtime_args.size();
+    constexpr uint32_t writer_runtime_args_size = 4;
+    constexpr uint32_t compute_runtime_args_size = 3;
     uint32_t num_output_blocks_per_core;
-    for (uint32_t i = 0, num_blocks_written = 0; i < total_num_cores; i++){
+    for (uint32_t i = 0, num_blocks_written = 0; i < num_cores; i++){
         CoreCoord core = {i / num_cores_y, i % num_cores_y};
 
         if (core_group_1.core_coord_in_core_ranges(core)) {
@@ -176,42 +209,14 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
         } else if (core_group_2.core_coord_in_core_ranges(core)) {
             num_output_blocks_per_core = num_output_blocks_per_core_group_2;
         } else {
-            tt_metal::SetRuntimeArgs(program, reader_id, core, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-            tt_metal::SetRuntimeArgs(program, compute_kernel_id, core, {0, 0, 0, 0});
-            tt_metal::SetRuntimeArgs(program, writer_id, core, {0, 0, 0});
-            continue;
+            TT_ASSERT(false, "Core not in specified core ranges");
         }
 
-        tt_metal::SetRuntimeArgs(
-            program, reader_id, core,
-            {
-                src0_addr,
-                src1_addr,
-                Mt,
-                Kt,
-                Nt,
-                MtKt,
-                in1_KtNt_skip, // Skip to get next batch for in1 after reading in0 Kt
-                in1_KtNt_stride * TILE_HEIGHT, // in1 stride; skips 32 * KtNt in bshape[0] for one block of MtNt
-                num_output_blocks_per_core,
-                num_blocks_written * MtKt, // in0_start_id
-                0, // in1_start_id; always read in same in1 per core TODO: multi-cast
+        // Update core dependent runtime args
+        reader_runtime_args[blocks_vector_idx] = num_output_blocks_per_core;
+        reader_runtime_args[in0_start_id_vector_idx] = num_blocks_written * MtKt;
 
-                // mcast args
-                (uint32_t) top_left_core_physical.x, // in1_mcast_dest_noc_start_x
-                (uint32_t) top_left_core_physical.y, // in1_mcast_dest_noc_start_y
-                (uint32_t) bottom_right_core_physical.x, // in1_mcast_dest_noc_end_x
-                (uint32_t) bottom_right_core_physical.y, // in1_mcast_dest_noc_end_y
-                //num_cores_y - 1,
-                //num_cores_y - 1,
-                //act_mcast_sender_semaphore,
-                //act_mcast_receiver_semaphore,
-                //in0_block_num_tiles * tilized_act_tile_size, // act_mcast_sender_size_bytes
-                //core_y_i, // act_mcast_sender_id (goes down the column)
-                //(uint32_t) bottom_core_physical.x, // act_mcast_sender_noc_x
-            }
-        );
-
+        tt_metal::SetRuntimeArgs(program, reader_id, core, reader_runtime_args);
 
         tt_metal::SetRuntimeArgs(
             program,
@@ -295,7 +300,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
         auto [num_cores, all_cores, core_group_1, core_group_2, num_output_blocks_per_core_group_1, num_output_blocks_per_core_group_2] = split_work_to_cores(compute_with_storage_grid_size, num_output_blocks_total);
 
         uint32_t num_output_blocks_per_core;
-        for (uint32_t i = 0, num_blocks_written = 0; i < total_num_cores; i++){
+        for (uint32_t i = 0, num_blocks_written = 0; i < num_cores; i++){
             CoreCoord core = {i / num_cores_y, i % num_cores_y};
 
             if (core_group_1.core_coord_in_core_ranges(core)) {
@@ -303,10 +308,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
             } else if (core_group_2.core_coord_in_core_ranges(core)) {
                 num_output_blocks_per_core = num_output_blocks_per_core_group_2;
             } else {
-                tt_metal::SetRuntimeArgs(program, reader_id, core, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-                tt_metal::SetRuntimeArgs(program, compute_kernel_id, core, {0, 0, 0, 0});
-                tt_metal::SetRuntimeArgs(program, writer_id, core, {0, 0, 0});
-                continue;
+                TT_ASSERT(false, "Core not in specified core ranges");
             }
 
             tt_metal::SetRuntimeArgs(
