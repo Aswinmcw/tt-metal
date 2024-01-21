@@ -56,7 +56,6 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
     // Note, in1 K may not be the same as in0 K. We will read up to in0 K from in1 K for matmul.
     const bool transpose_hw_bool = transpose_hw.value_or(false);
     const uint32_t num_tokens_val = num_tokens.value_or(0); // should not be nullopt if transpose_hw=true
-    constexpr uint32_t num_rows_in_one_tile = 32;
 
     uint32_t B = ashape[1];  // ashape[0] is q_len
     uint32_t Mt = ashape[2]/TILE_HEIGHT;
@@ -125,7 +124,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
 
     auto reader_id = tt_metal::CreateKernel(
         program,
-        "tt_eager/tt_dnn/op_library/transformer_tms/kernels/dataflow/reader_transformer_attn_matmul.cpp",
+        "tt_eager/tt_dnn/op_library/transformer_tms/kernels/dataflow/reader_mcast_transformer_group_attn_matmul.cpp",
         all_device_cores,
         tt_metal::ReaderDataMovementConfig{.compile_args = reader_compile_time_args});
 
@@ -139,7 +138,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
         (uint32_t) transpose_hw_bool, // transpose_hw for matmul_init
     }; // bmm compute kernel the B, Mt, Nt are just 3 for loops that technically act as 1 large loop, so only set Nt for simplicity
 
-    auto eltwise_binary_kernel_id = tt_metal::CreateKernel(
+    auto compute_kernel_id = tt_metal::CreateKernel(
         program,
         "tt_eager/tt_dnn/op_library/transformer_tms/kernels/compute/transformer_attn_matmul.cpp",
         all_device_cores,
@@ -156,7 +155,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
             num_output_blocks_per_core = num_output_blocks_per_core_group_2;
         } else {
             tt_metal::SetRuntimeArgs(program, reader_id, core, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-            tt_metal::SetRuntimeArgs(program, eltwise_binary_kernel_id, core, {0, 0, 0, 0});
+            tt_metal::SetRuntimeArgs(program, compute_kernel_id, core, {0, 0, 0, 0});
             tt_metal::SetRuntimeArgs(program, writer_id, core, {0, 0, 0});
             continue;
         }
@@ -171,7 +170,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
                 Nt,
                 MtKt,
                 in1_KtNt_skip, // Skip to get next batch for in1 after reading in0 Kt
-                in1_KtNt_stride * num_rows_in_one_tile, // itileB stride; skips 32 * KtNt in bshape[0] for one block of MtNt
+                in1_KtNt_stride * TILE_HEIGHT, // itileB stride; skips 32 * KtNt in bshape[0] for one block of MtNt
                 num_output_blocks_per_core,
                 num_blocks_written * MtKt, // itileA_start
                 0, // itileB_start; always read in same in1 per core TODO: multi-cast
@@ -181,7 +180,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
 
         tt_metal::SetRuntimeArgs(
             program,
-            eltwise_binary_kernel_id,
+            compute_kernel_id,
             core,
             {
                 1, // B
@@ -207,7 +206,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
     auto override_runtime_arguments_callback = [
             reader_id,
             writer_id,
-            eltwise_binary_kernel_id,
+            compute_kernel_id,
             total_num_cores,
             in0_single_tile_size,
             cb_src0,
@@ -239,7 +238,6 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
         // Note, in1 K may not be the same as in0 K. We will read up to in0 K from in1 K for matmul.
         const bool transpose_hw_bool = transpose_hw.value_or(false);
         const uint32_t num_tokens_val = num_tokens.value_or(0); // should not be nullopt if transpose_hw=true
-        constexpr uint32_t num_rows_in_one_tile = 32;
 
         uint32_t B = ashape[1];  // ashape[0] is q_len
         uint32_t Mt = ashape[2]/TILE_HEIGHT;
@@ -271,7 +269,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
                 num_output_blocks_per_core = num_output_blocks_per_core_group_2;
             } else {
                 tt_metal::SetRuntimeArgs(program, reader_id, core, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-                tt_metal::SetRuntimeArgs(program, eltwise_binary_kernel_id, core, {0, 0, 0, 0});
+                tt_metal::SetRuntimeArgs(program, compute_kernel_id, core, {0, 0, 0, 0});
                 tt_metal::SetRuntimeArgs(program, writer_id, core, {0, 0, 0});
                 continue;
             }
@@ -286,7 +284,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
                     Nt,
                     MtKt,
                     in1_KtNt_skip, // Skip to get next batch for in1 after reading in0 Kt
-                    in1_KtNt_stride * num_rows_in_one_tile, // itileB stride; skips 32 * KtNt in bshape[0] for one block of MtNt
+                    in1_KtNt_stride * TILE_HEIGHT, // itileB stride; skips 32 * KtNt in bshape[0] for one block of MtNt
                     num_output_blocks_per_core,
                     num_blocks_written * MtKt, // itileA_start
                     0, // itileB_start; always read in same in1 per core TODO: multi-cast
@@ -296,7 +294,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
 
             tt_metal::SetRuntimeArgs(
                 program,
-                eltwise_binary_kernel_id,
+                compute_kernel_id,
                 core,
                 {
                     1, // B

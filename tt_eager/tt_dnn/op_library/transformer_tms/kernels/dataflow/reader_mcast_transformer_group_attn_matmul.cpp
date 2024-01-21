@@ -16,8 +16,8 @@ void kernel_main() {
     uint32_t in1_KtNt_skip        = get_arg_val<uint32_t>(6); // 0 if in0 and in1 Kt are the same
     uint32_t in1_KtNt_mul_32      = get_arg_val<uint32_t>(7);
     uint32_t blocks               = get_arg_val<uint32_t>(8);
-    uint32_t itileA_start         = get_arg_val<uint32_t>(9);
-    uint32_t itileB_start         = get_arg_val<uint32_t>(10);
+    uint32_t in0_start_id         = get_arg_val<uint32_t>(9);
+    uint32_t in1_start_id         = get_arg_val<uint32_t>(10);
 
     constexpr bool src0_is_dram = get_compile_time_arg_val(0) == 1;
     constexpr bool src1_is_dram = get_compile_time_arg_val(1) == 1;
@@ -47,12 +47,12 @@ void kernel_main() {
         .data_format = in1_data_format
     };
 
-    uint32_t itileA_batch = itileA_start;
-    uint32_t itileB_batch;
-    uint32_t itileA_Mt;
-    uint32_t itileB_Nt;
-    uint32_t itileA;
-    uint32_t itileB;
+    uint32_t in0_batch = in0_start_id;
+    uint32_t in1_batch;
+    uint32_t in0_Mt;
+    uint32_t in1_Nt;
+    uint32_t in0_tensor_id;
+    uint32_t in1_tensor_id;
 
     uint32_t cb_intermed1_addr_initial = get_read_ptr(cb_id_intermed1);
     uint32_t cb_intermed2_addr_initial = get_write_ptr(cb_id_intermed2);
@@ -62,27 +62,27 @@ void kernel_main() {
     constexpr uint32_t num_rows_in_one_tile = 32;
 
     for (uint32_t b = 0; b < blocks; b++) {
-        itileA_Mt = itileA_batch;
-        itileB_batch = itileB_start;
+        in0_Mt = in0_batch;
+        in1_batch = in1_start_id;
 
     for (uint32_t m = 0; m < Mt; m++) {
-        itileB_Nt = itileB_batch;
+        in1_Nt = in1_batch;
 
     for (uint32_t n = 0; n < Nt; n++) {
         cb_intermed1_addr = cb_intermed1_addr_initial;
         cb_intermed2_addr = cb_intermed2_addr_initial;
-        itileA = itileA_Mt;
-        itileB = itileB_Nt;
+        in0_tensor_id = in0_Mt;
+        in1_tensor_id = in1_Nt;
 
         cb_reserve_back(cb_id_in0, Kt);
         for (uint32_t kt = 0; kt < Kt; kt++) {
             // Read A's tile at (mt, kt)
             uint32_t l1_write_addr_in0 = get_write_ptr(cb_id_in0);
-            noc_async_read_tile(itileA, s0, l1_write_addr_in0);
+            noc_async_read_tile(in0_tensor_id, s0, l1_write_addr_in0);
             noc_async_read_barrier();
             cb_push_back(cb_id_in0, onetile);
 
-            itileA++; // A is MK
+            in0_tensor_id++; // A is MK
         }
 
         cb_reserve_back(cb_id_intermed2, 1);
@@ -91,14 +91,14 @@ void kernel_main() {
                 // Read B's tile at (kt, nt)
                 cb_reserve_back(cb_id_in1, onetile);
                 uint32_t l1_write_addr_in1 = get_write_ptr(cb_id_in1);
-                noc_async_read_tile(itileB, s1, l1_write_addr_in1);
+                noc_async_read_tile(in1_tensor_id, s1, l1_write_addr_in1);
                 noc_async_read_barrier();
                 cb_push_back(cb_id_in1, onetile);
 
                 #if (transpose_hw_bool)
-                itileB++; // Kt is in B[3], so it is contiguous in memory
+                in1_tensor_id++; // Kt is in B[3], so it is contiguous in memory
                 #else
-                itileB += Nt; // Kt is in B[2], so stride is Nt
+                in1_tensor_id += Nt; // Kt is in B[2], so stride is Nt
                 #endif
             } // Kt loop
 
@@ -110,23 +110,23 @@ void kernel_main() {
             cb_intermed1_addr += bfloat16_row_bytes;
             cb_intermed2_addr += bfloat16_row_bytes;
 
-            itileB += in1_KtNt_skip; // different depending on transpose_hw
+            in1_tensor_id += in1_KtNt_skip; // different depending on transpose_hw
         } // 32 tiles loop
         cb_push_back(cb_id_intermed2, 1);
 
         // Next tile in Nt
         #if (transpose_hw_bool)
-        itileB_Nt += Kt; // next tile in Nt is in B[2], so stride is Kt
+        in1_Nt += Kt; // next tile in Nt is in B[2], so stride is Kt
         #else
-        itileB_Nt++;
+        in1_Nt++;
         #endif
     } // Nt loop
 
-    itileA_Mt += Kt;
+    in0_Mt += Kt;
     // here, KtNt is the stride of the full B tensor (ie. max cache length is incorporated in one of Kt or Nt depending on transpose_hw)
-    itileB_batch += in1_KtNt_mul_32; // different depending on transpose_hw
+    in1_batch += in1_KtNt_mul_32; // different depending on transpose_hw
     } // Mt loop
 
-    itileA_batch += MtKt;
+    in0_batch += MtKt;
     } // B loop
 }
