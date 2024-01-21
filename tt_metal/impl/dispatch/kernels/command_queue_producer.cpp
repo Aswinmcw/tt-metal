@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tt_metal/impl/dispatch/kernels/command_queue_producer.hpp"
+#include "debug/dprint.h"
 
 void kernel_main() {
     constexpr uint32_t host_issue_queue_read_ptr_addr = get_compile_time_arg_val(0);
@@ -65,6 +66,7 @@ void kernel_main() {
         program_local_cb(data_section_addr, producer_cb_num_pages, page_size, producer_cb_size);
         while (db_semaphore_addr[0] == 0)
             ;  // Check that there is space in the consumer
+        DPRINT << "DPRINT there is space in the consumer " << ENDL() ;
         program_consumer_cb<consumer_cmd_base_addr, consumer_data_buffer_size>(db_buf_switch, consumer_noc_encoding, consumer_cb_num_pages, page_size, consumer_cb_size);
         relay_command<consumer_cmd_base_addr, consumer_data_buffer_size>(db_buf_switch, consumer_noc_encoding);
         if (stall) {

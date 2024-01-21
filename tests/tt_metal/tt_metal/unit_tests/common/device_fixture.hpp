@@ -17,11 +17,6 @@ inline bool is_multi_device_gs_machine(const tt::ARCH& arch, const size_t num_de
 class DeviceFixture : public ::testing::Test {
    protected:
     void SetUp() override {
-        auto slow_dispatch = getenv("TT_METAL_SLOW_DISPATCH_MODE");
-        if (not slow_dispatch) {
-            TT_THROW("This suite can only be run with TT_METAL_SLOW_DISPATCH_MODE set");
-            GTEST_SKIP();
-        }
         arch_ = tt::get_arch_from_string(tt::test_utils::get_env_arch_name());
 
         num_devices_ = tt::tt_metal::GetNumAvailableDevices();

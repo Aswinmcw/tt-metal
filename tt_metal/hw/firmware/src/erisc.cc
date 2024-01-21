@@ -26,8 +26,6 @@ namespace kernel_profiler {
 uint32_t wIndex __attribute__((used));
 }
 
-tt_l1_ptr mailboxes_t * const mailboxes = (tt_l1_ptr mailboxes_t *)(eth_l1_mem::address_map::ERISC_MEM_MAILBOX_BASE);
-
 uint8_t my_x[NUM_NOCS] __attribute__((used));
 uint8_t my_y[NUM_NOCS] __attribute__((used));
 
@@ -58,7 +56,7 @@ void __attribute__((section("erisc_l1_code"))) ApplicationHandler(void) {
         if (erisc_info->launch_sd_kernel == 1) {
             kernel_init();
         } else {
-            risc_context_switch();
+          internal_::risc_context_switch();
         }
     }
     disable_erisc_app();

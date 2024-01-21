@@ -33,8 +33,12 @@ void __attribute__((section("erisc_l1_code"))) kernel_launch() {
     }
     ncrisc_noc_full_sync();
 
+    erisc_info->unused_arg1 = (DISPATCH_CORE_X << 16 | DISPATCH_CORE_Y);
     kernel_profiler::mark_time(CC_KERNEL_MAIN_START);
     kernel_main();
     kernel_profiler::mark_time(CC_KERNEL_MAIN_END);
     erisc_info->launch_sd_kernel = 0;
+
+        uint64_t dispatch_addr = NOC_XY_ADDR(NOC_X(DISPATCH_CORE_X), NOC_Y(DISPATCH_CORE_Y), DISPATCH_MESSAGE_ADDR);
+        noc_fast_atomic_increment(noc_index, NCRISC_AT_CMD_BUF, dispatch_addr, 1, 31 /*wrap*/, false /*linked*/);
 }

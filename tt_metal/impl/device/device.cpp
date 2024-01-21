@@ -261,6 +261,7 @@ void Device::clear_l1_state() {
         std::vector<uint32_t> init_erisc_info_vec(
             eth_l1_mem::address_map::ERISC_APP_SYNC_INFO_SIZE / sizeof(uint32_t), 0);
 
+        std::cout << " clearing erisc info for " << this->id()  << " physical core " << physical_core.str() << std::endl;
         llrt::write_hex_vec_to_core(
             this->id(), physical_core, init_erisc_info_vec, eth_l1_mem::address_map::ERISC_APP_SYNC_INFO_BASE);
     }
@@ -349,7 +350,7 @@ bool Device::close() {
         }
     }
 
-    this->clear_l1_state();
+    // this->clear_l1_state();
     tt::Cluster::instance().l1_barrier(id_);
     allocator::clear(*this->allocator_);
 

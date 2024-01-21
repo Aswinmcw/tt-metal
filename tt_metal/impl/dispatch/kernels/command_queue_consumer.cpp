@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tt_metal/impl/dispatch/kernels/command_queue_consumer.hpp"
+#include "debug/dprint.h"
 
 // The read interface for the issue region is set up on the device, the write interface belongs to host
 // Opposite for completion region where device sets up the write interface and host owns read interface
@@ -53,13 +54,18 @@ void kernel_main() {
         uint32_t wrap = command_ptr[DeviceCommand::wrap_idx];
 
         if ((DeviceCommand::WrapRegion)wrap == DeviceCommand::WrapRegion::COMPLETION) {
+            DPRINT << " DPRINT completion " << ENDL();
             cq_write_interface.completion_fifo_wr_ptr = completion_queue_start_addr >> 4;     // Head to the beginning of the completion region
             cq_write_interface.completion_fifo_wr_toggle = not cq_write_interface.completion_fifo_wr_toggle;
             notify_host_of_completion_queue_write_pointer<host_completion_queue_write_ptr_addr>();
         } else if (is_program) {
+            DPRINT << " DPRINT  program " << ENDL();
             write_and_launch_program(program_transfer_start_addr, num_pages, command_ptr, producer_noc_encoding, consumer_cb_size, consumer_cb_num_pages, producer_consumer_transfer_num_pages, db_buf_switch);
+            DPRINT << "DPRINT  wait for program completion " << num_workers << ENDL();
             wait_for_program_completion(num_workers);
+            DPRINT << "DPRINT  done wait for program completion " << num_workers << ENDL();
         } else {
+            DPRINT << " DPRINT else?? " << ENDL();
             command_ptr = reinterpret_cast<volatile tt_l1_ptr uint32_t*>(buffer_transfer_start_addr);
             write_buffers<host_completion_queue_write_ptr_addr>(command_ptr, completion_queue_start_addr, num_buffer_transfers,  sharded_buffer_num_cores, consumer_cb_size, consumer_cb_num_pages, producer_noc_encoding, producer_consumer_transfer_num_pages, db_buf_switch);
         }
@@ -68,6 +74,7 @@ void kernel_main() {
             notify_host_complete<host_finish_addr>();
         }
 
+        DPRINT << "DPRINT  done finish " << num_workers << ENDL();
         // notify producer that it has completed a command
         noc_semaphore_inc(producer_noc_encoding | get_semaphore(0), 1);
         db_buf_switch = not db_buf_switch;

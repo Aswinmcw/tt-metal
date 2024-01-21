@@ -29,6 +29,8 @@ struct erisc_info_t {
     uint32_t reserved_5_;
 };
 
+tt_l1_ptr mailboxes_t * const mailboxes = (tt_l1_ptr mailboxes_t *)(eth_l1_mem::address_map::ERISC_MEM_MAILBOX_BASE);
+
 erisc_info_t *erisc_info = (erisc_info_t *)(eth_l1_mem::address_map::ERISC_APP_SYNC_INFO_BASE);
 volatile uint32_t *flag_disable = (uint32_t *)(eth_l1_mem::address_map::LAUNCH_ERISC_APP_FLAG);
 
@@ -38,6 +40,13 @@ volatile uint32_t *RtosTable =
 
 void (*rtos_context_switch_ptr)();
 
+FORCE_INLINE
+void reset_erisc_info() { erisc_info->user_buffer_bytes_sent = 0; }
+
+FORCE_INLINE
+void disable_erisc_app() { flag_disable[0] = 0; }
+
+namespace internal_ {
 void __attribute__((section("code_l1"))) risc_context_switch() {
     ncrisc_noc_full_sync();
     rtos_context_switch_ptr();
@@ -45,10 +54,57 @@ void __attribute__((section("code_l1"))) risc_context_switch() {
 }
 
 FORCE_INLINE
-void reset_erisc_info() { erisc_info->user_buffer_bytes_sent = 0; }
+void send_fd_packets() {
+    eth_send_packet(
+        0,
+        (eth_l1_mem::address_map::ERISC_APP_RESERVED_BASE) >> 4,
+        ((eth_l1_mem::address_map::ERISC_APP_RESERVED_BASE)) >> 4,
+        (eth_l1_mem::address_map::ERISC_APP_RESERVED_SIZE) >> 4);
+    erisc_info->fd_buffer_msgs_sent += 1;
+    eth_send_packet(
+        0,
+        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
+        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
+        1);
+    while (erisc_info->fd_buffer_msgs_sent != 0) {
+        // TODO: add timer to restrict this
+      internal_::risc_context_switch();
+    }
+}
 
 FORCE_INLINE
-void disable_erisc_app() { flag_disable[0] = 0; }
+void receive_fd_packets() {
+    while (erisc_info->fd_buffer_msgs_sent != 1) {
+        // TODO: add timer to restrict this
+      internal_::risc_context_switch();
+    }
+    erisc_info->fd_buffer_msgs_sent = 0;
+    eth_send_packet(
+        0,
+        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
+        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
+        1);
+}
+}  // namespace internal_
+
+// set mode in host, set enable_fd_tunneling on firmware init and clear on device close?
+//
+void run_routing() {
+    // TODO: maybe split into two FWs? or this may be better to sometimes allow each eth core to do both send and
+    // receive of fd packets
+    if (erisc_info->routing_mode == 0) {
+        internal_::send_fd_packets();
+    } else if (erisc_info->routing_mode == 1) {
+        internal_::receive_fd_packets();
+    } else if (erisc_info->routing_mode == 2) {
+        // slow dispatch mode
+        internal_::risc_context_switch();
+    } else {
+        while (true) {
+            RISC_POST_STATUS(0xdeaddead);
+        }
+    }
+}
 
 FORCE_INLINE
 void check_and_context_switch() {
@@ -56,7 +112,7 @@ void check_and_context_switch() {
     uint32_t end_time = start_time;
     while (end_time - start_time < 100000) {
         RISC_POST_STATUS(0xdeadCAFE);
-        risc_context_switch();
+        internal_::risc_context_switch();
         RISC_POST_STATUS(0xdeadFEAD);
         end_time = reg_read(RISCV_DEBUG_REG_WALL_CLOCK_L);
     }
@@ -79,7 +135,7 @@ void check_and_context_switch() {
 FORCE_INLINE
 void eth_noc_semaphore_wait(volatile tt_l1_ptr uint32_t* sem_addr, uint32_t val) {
     while ((*sem_addr) != val) {
-        risc_context_switch();
+        internal_::risc_context_switch();
     }
 }
 
@@ -94,7 +150,7 @@ void eth_noc_semaphore_wait(volatile tt_l1_ptr uint32_t* sem_addr, uint32_t val)
 FORCE_INLINE
 void eth_noc_async_read_barrier() {
     while (!ncrisc_noc_reads_flushed(noc_index)) {
-        risc_context_switch();
+        internal_::risc_context_switch();
     }
 }
 
@@ -109,7 +165,7 @@ void eth_noc_async_read_barrier() {
 FORCE_INLINE
 void eth_noc_async_write_barrier() {
     while (!ncrisc_noc_nonposted_writes_flushed(noc_index)) {
-        risc_context_switch();
+        internal_::risc_context_switch();
     }
 }
 
@@ -158,7 +214,7 @@ void eth_wait_for_receiver_done() {
         ((uint32_t)(&(erisc_info->user_buffer_bytes_sent))) >> 4,
         1);
     while (erisc_info->user_buffer_bytes_sent != 0) {
-        risc_context_switch();
+        internal_::risc_context_switch();
     }
 }
 
@@ -210,7 +266,7 @@ void eth_wait_for_remote_receiver_done_and_get_local_receiver_data(
 FORCE_INLINE
 void eth_wait_for_bytes(uint32_t num_bytes) {
     while (erisc_info->user_buffer_bytes_sent != num_bytes) {
-        risc_context_switch();
+        internal_::risc_context_switch();
     }
 }
 
@@ -232,57 +288,3 @@ void eth_receiver_done() {
         ((uint32_t)(&(erisc_info->user_buffer_bytes_sent))) >> 4,
         1);
 }
-
-namespace internal_ {
-FORCE_INLINE
-void send_fd_packets() {
-    eth_send_packet(
-        0,
-        (eth_l1_mem::address_map::ERISC_APP_RESERVED_BASE) >> 4,
-        ((eth_l1_mem::address_map::ERISC_APP_RESERVED_BASE)) >> 4,
-        (eth_l1_mem::address_map::ERISC_APP_RESERVED_SIZE) >> 4);
-    erisc_info->fd_buffer_msgs_sent += 1;
-    eth_send_packet(
-        0,
-        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
-        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
-        1);
-    while (erisc_info->fd_buffer_msgs_sent != 0) {
-        // TODO: add timer to restrict this
-        risc_context_switch();
-    }
-}
-
-FORCE_INLINE
-void receive_fd_packets() {
-    while (erisc_info->fd_buffer_msgs_sent != 1) {
-        // TODO: add timer to restrict this
-        risc_context_switch();
-    }
-    erisc_info->fd_buffer_msgs_sent = 0;
-    eth_send_packet(
-        0,
-        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
-        ((uint32_t)(&(erisc_info->fd_buffer_msgs_sent))) >> 4,
-        1);
-}
-
-// set mode in host, set enable_fd_tunneling on firmware init and clear on device close?
-//
-void run_routing() {
-    // TODO: maybe split into two FWs? or this may be better to sometimes allow each eth core to do both send and
-    // receive of fd packets
-    if (erisc_info->routing_mode == 0) {
-        internal_::send_fd_packets();
-    } else if (erisc_info->routing_mode == 1) {
-        internal_::receive_fd_packets();
-    } else if (erisc_info->routing_mode == 2) {
-        // slow dispatch mode
-        risc_context_switch();
-    } else {
-        while (true) {
-            RISC_POST_STATUS(0xdeaddead);
-        }
-    }
-}
-}  // namespace internal_

@@ -27,6 +27,8 @@ uint32_t get_noc_multicast_encoding(const CoreCoord& top_left, const CoreCoord& 
 
 uint32_t get_noc_unicast_encoding(CoreCoord coord) { return NOC_XY_ENCODING(NOC_X(coord.x), NOC_Y(coord.y)); }
 
+
+
 ProgramMap ConstructProgramMap(const Device* device, Program& program) {
     /*
         TODO(agrebenisan): Move this logic to compile program
@@ -77,12 +79,12 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
         return src;
     };
 
-    auto extract_dst_noc_multicast_info = [&device](const set<CoreRange>& ranges) -> vector<pair<uint32_t, uint32_t>> {
+    auto extract_dst_noc_multicast_info = [&device](const set<CoreRange>& ranges, const CoreType core_type) -> vector<pair<uint32_t, uint32_t>> {
         // This API extracts all the pairs of noc multicast encodings given a set of core ranges
         vector<pair<uint32_t, uint32_t>> dst_noc_multicast_info;
         for (const CoreRange& core_range : ranges) {
-            CoreCoord physical_start = device->worker_core_from_logical_core(core_range.start);
-            CoreCoord physical_end = device->worker_core_from_logical_core(core_range.end);
+            CoreCoord physical_start = device->physical_core_from_logical_core(core_range.start, core_type);
+            CoreCoord physical_end = device->physical_core_from_logical_core(core_range.end, core_type);
 
             uint32_t dst_noc_multicast_encoding = get_noc_multicast_encoding(physical_start, physical_end);
 
@@ -96,6 +98,7 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
         {RISCV::BRISC, BRISC_L1_ARG_BASE},
         {RISCV::NCRISC, NCRISC_L1_ARG_BASE},
         {RISCV::COMPUTE, TRISC_L1_ARG_BASE},
+        {RISCV::ERISC, eth_l1_mem::address_map::ERISC_L1_ARG_BASE},
     };
 
     // Step 1: Get transfer info for runtime args (soon to just be host data). We
@@ -104,8 +107,9 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
     for (size_t kernel_id = 0; kernel_id < program.num_kernels(); kernel_id++) {
         Kernel* kernel = detail::GetKernel(program, kernel_id);
         uint32_t dst = processor_to_l1_arg_base_addr.at(kernel->processor());
+        const auto & kernel_core_type = kernel->get_kernel_core_type();
         for (const auto &core_coord : kernel->cores_with_runtime_args()) {
-            CoreCoord physical_core = device->worker_core_from_logical_core(core_coord);
+            CoreCoord physical_core = device->physical_core_from_logical_core(core_coord, kernel->get_kernel_core_type());
             const auto & runtime_args = kernel->runtime_args(core_coord);
             uint32_t num_bytes = runtime_args.size() * sizeof(uint32_t);
             uint32_t dst_noc = get_noc_unicast_encoding(physical_core);
@@ -125,7 +129,8 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
     src = 0; // Resetting since in a new page
     // Step 2: Continue constructing pages for circular buffer configs
     for (const shared_ptr<CircularBuffer>& cb : program.circular_buffers()) {
-        vector<pair<uint32_t, uint32_t>> dst_noc_multicast_info = extract_dst_noc_multicast_info(cb->core_ranges().ranges());
+        // No CB support for ethernet cores
+        vector<pair<uint32_t, uint32_t>> dst_noc_multicast_info = extract_dst_noc_multicast_info(cb->core_ranges().ranges(), CoreType::WORKER);
         constexpr static uint32_t num_bytes = UINT32_WORDS_PER_CIRCULAR_BUFFER_CONFIG * sizeof(uint32_t);
         for (const auto buffer_index : cb->buffer_indices()) {
             src = update_program_page_transfers(
@@ -149,23 +154,28 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
         {RISCV::NCRISC, MEM_NCRISC_INIT_LOCAL_L1_BASE},
         {RISCV::TRISC0, MEM_TRISC0_INIT_LOCAL_L1_BASE},
         {RISCV::TRISC1, MEM_TRISC1_INIT_LOCAL_L1_BASE},
-        {RISCV::TRISC2, MEM_TRISC2_INIT_LOCAL_L1_BASE}};
+        {RISCV::TRISC2, MEM_TRISC2_INIT_LOCAL_L1_BASE},
+        {RISCV::ERISC, eth_l1_mem::address_map::FIRMWARE_BASE}};
 
     // Step 3: Determine the transfer information for each program binary
     src = 0; // Restart src since it begins in a new page
+    std::cout << " here step 3 " << std::endl;
     for (const KernelGroup &kg: program.get_kernel_groups()) {
-
         vector<pair<uint32_t, uint32_t>> dst_noc_multicast_info =
-            extract_dst_noc_multicast_info(kg.core_ranges.ranges());
+            extract_dst_noc_multicast_info(kg.core_ranges.ranges(), kg.get_core_type());
 
         // So far, we don't support linking optimizations for kernel groups
         // which use multiple core ranges
         bool linked = dst_noc_multicast_info.size() == 1;
+        if (kg.get_core_type() == CoreType::ETH) {
+            linked = false;
+        }
 
         vector<KernelHandle> kernel_ids;
         if (kg.riscv0_id) kernel_ids.push_back(kg.riscv0_id.value());
         if (kg.riscv1_id) kernel_ids.push_back(kg.riscv1_id.value());
         if (kg.compute_id) kernel_ids.push_back(kg.compute_id.value());
+        if (kg.erisc_id) kernel_ids.push_back(kg.erisc_id.value());
 
         uint32_t src_copy = src;
         for (size_t i = 0; i < kernel_ids.size(); i++) {
@@ -193,10 +203,26 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
                         dst = (dst & ~MEM_LOCAL_BASE) + processor_to_local_mem_addr.at(sub_kernels[sub_kernel_index]);
                     } else if ((dst & MEM_NCRISC_IRAM_BASE) == MEM_NCRISC_IRAM_BASE) {
                         dst = (dst & ~MEM_NCRISC_IRAM_BASE) + MEM_NCRISC_INIT_IRAM_L1_BASE;
+                    } else {
+                    }
+                    std::cout << " final dst is " << std::hex << dst << std::endl;
+                    std::cout << " updateing program page transfers for " << kernel->name();
+                    for (const auto &core: kernel->logical_cores()) {
+                        std::cout << core.str() << std::endl;
                     }
 
-                    src = update_program_page_transfers(
-                        src, num_bytes, dst, program_page_transfers, num_transfers_in_program_pages, dst_noc_multicast_info, linked);
+                if (kg.get_core_type() == CoreType::ETH) {
+                    // TODO: add multicasting program binaries to eth cores
+                    for (const auto &logical_eth_core: kernel->logical_cores()) {
+
+                        uint32_t dst_noc = get_noc_unicast_encoding(device->physical_core_from_logical_core(logical_eth_core, CoreType::ETH));
+                      src = update_program_page_transfers(
+                          src, num_bytes, dst, program_page_transfers, num_transfers_in_program_pages, {{dst_noc, 1}});
+                    }
+                } else {
+                src = update_program_page_transfers(
+                    src, num_bytes, dst, program_page_transfers, num_transfers_in_program_pages, dst_noc_multicast_info, linked);
+            }
                     k++;
                 });
                 sub_kernel_index++;
@@ -205,9 +231,10 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
     }
 
     // Step 4: Continue constructing pages for semaphore configs
+    // No suppport for eth core semaphores
     for (const Semaphore& semaphore : program.semaphores()) {
         vector<pair<uint32_t, uint32_t>> dst_noc_multicast_info =
-            extract_dst_noc_multicast_info(semaphore.core_range_set().ranges());
+            extract_dst_noc_multicast_info(semaphore.core_range_set().ranges(), CoreType::WORKER);
 
         src = update_program_page_transfers(
             src,
@@ -229,20 +256,38 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
     src = 0;
     for (KernelGroup& kg : program.get_kernel_groups()) {
         kg.launch_msg.mode = DISPATCH_MODE_DEV;
+        // TODO: add multicasting go signals to eth cores
         vector<pair<uint32_t, uint32_t>> dst_noc_multicast_info =
-            extract_dst_noc_multicast_info(kg.core_ranges.ranges());
+            extract_dst_noc_multicast_info(kg.core_ranges.ranges(), kg.get_core_type());
 
-        src = update_program_page_transfers(
-            src,
-            sizeof(launch_msg_t),
-            GET_MAILBOX_ADDRESS_HOST(launch),
-            go_signal_page_transfers,
-            num_transfers_in_go_signal_pages,
-            dst_noc_multicast_info
-        );
+        if (kg.get_core_type() == CoreType::ETH) {
+            // TODO: add multicasting go signals to eth cores
+            const Kernel* kernel = detail::GetKernel(program, kg.erisc_id.value());
+            for (const auto &logical_eth_core: kernel->logical_cores()) {
+                  uint32_t dst_noc = get_noc_unicast_encoding(device->physical_core_from_logical_core(logical_eth_core, CoreType::ETH));
+                  std::cout << " setting go singal for chip " << device->id() << " core " << logical_eth_core.str()  << std::endl;
+                src = update_program_page_transfers(
+                    src,
+                     sizeof(uint32_t),
+                     eth_l1_mem::address_map::ERISC_APP_SYNC_INFO_BASE,
+                     go_signal_page_transfers,
+                    num_transfers_in_go_signal_pages,
+                    {{dst_noc, 1}});
+            }
+        } else{
+            src = update_program_page_transfers(
+               src,
+                sizeof(launch_msg_t),
+                GET_MAILBOX_ADDRESS_HOST(launch),
+                go_signal_page_transfers,
+               num_transfers_in_go_signal_pages,
+               dst_noc_multicast_info
+           );
+        }
     }
 
     if (num_transfers_within_page) {
+      std::cout << " num transfers in go singal pages " << num_transfers_within_page << std::endl;
         num_transfers_in_go_signal_pages.push_back(num_transfers_within_page);
     }
 
@@ -256,6 +301,7 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
         if (kg.riscv0_id) kernel_ids.push_back(kg.riscv0_id.value());
         if (kg.riscv1_id) kernel_ids.push_back(kg.riscv1_id.value());
         if (kg.compute_id) kernel_ids.push_back(kg.compute_id.value());
+        if (kg.erisc_id) kernel_ids.push_back(kg.erisc_id.value());
         for (KernelHandle kernel_id: kernel_ids) {
             const Kernel* kernel = detail::GetKernel(program, kernel_id);
 
@@ -274,25 +320,38 @@ ProgramMap ConstructProgramMap(const Device* device, Program& program) {
     }
 
     // Since GO signal begin in a new page, I need to advance my idx
-    program_page_idx = align(program_page_idx, DeviceCommand::PROGRAM_PAGE_SIZE / sizeof(uint32_t));
 
+    program_page_idx = align(program_page_idx, DeviceCommand::PROGRAM_PAGE_SIZE / sizeof(uint32_t));
     // uint32_t dispatch_core_word = ((uint32_t)dispatch_core.y << 16) | dispatch_core.x;
+   // std::cout << " num_transfers_in_go_signal_pages " << num_transfers_in_go_signal_pages<< std::endl;
     for (KernelGroup& kg: program.get_kernel_groups()) {
-        // TODO(agrebenisan): Hanging when we extend the launch msg. Needs to be investigated. For now,
-        // only supporting enqueue program for cq 0 on a device.
-        // kg.launch_msg.dispatch_core_x = dispatch_core.x;
-        // kg.launch_msg.dispatch_core_y = dispatch_core.y;
-        static_assert(sizeof(launch_msg_t) % sizeof(uint32_t) == 0);
-        uint32_t *launch_message_data = (uint32_t *)&kg.launch_msg;
-        for (int i = 0; i < sizeof(launch_msg_t) / sizeof(uint32_t); i++) {
-            program_pages[program_page_idx + i] = launch_message_data[i];
+
+        if (kg.get_core_type() == CoreType::ETH) {
+            const Kernel* kernel = detail::GetKernel(program, kg.erisc_id.value());
+            for (const auto &logical_eth_core: kernel->logical_cores()) {
+                    program_pages[program_page_idx] = 1;
+                    program_page_idx += 4; // 16 byte L1 alignment
+
+            }
+        } else {
+            // TODO(agrebenisan): Hanging when we extend the launch msg. Needs to be investigated. For now,
+            // only supporting enqueue program for cq 0 on a device.
+            // kg.launch_msg.dispatch_core_x = dispatch_core.x;
+            // kg.launch_msg.dispatch_core_y = dispatch_core.y;
+            static_assert(sizeof(launch_msg_t) % sizeof(uint32_t) == 0);
+            uint32_t *launch_message_data = (uint32_t *)&kg.launch_msg;
+            for (int i = 0; i < sizeof(launch_msg_t) / sizeof(uint32_t); i++) {
+                program_pages[program_page_idx + i] = launch_message_data[i];
+            }
+            program_page_idx += sizeof(launch_msg_t) / sizeof(uint32_t);
         }
-        program_page_idx += sizeof(launch_msg_t) / sizeof(uint32_t);
     }
 
     uint32_t num_workers = 0;
     if (program.logical_cores().find(CoreType::WORKER) != program.logical_cores().end()) {
         num_workers = program.logical_cores().at(CoreType::WORKER).size();
+    } else if (program.logical_cores().find(CoreType::ETH) != program.logical_cores().end()) {
+        num_workers = 1;
     }
 
     return {
@@ -575,6 +634,7 @@ const DeviceCommand EnqueueProgramCommand::assemble_device_command(uint32_t host
                 command.write_program_entry(num_transfers_in_page);
                 for (uint32_t k = 0; k < num_transfers_in_page; k++) {
                     const auto [num_bytes, dst, dst_noc, num_receivers, last_multicast_in_group, linked] = transfers_in_pages[i];
+                    std::cout << "populate runtime data 0x" << std::hex << dst  << " bytes " << num_bytes << std::endl;
                     command.add_write_page_partial_instruction(num_bytes, dst, dst_noc, num_receivers, last_multicast_in_group, linked);
                     i++;
                 }
@@ -1042,7 +1102,9 @@ void CommandQueue::finish() {
 
     FinishCommand command(this->id, this->device, this->manager);
     this->enqueue_command(command, false);
+    std::cout << " waiting finish " << std::endl;
     this->wait_finish();
+    std::cout << " done waiting finish " << std::endl;
 }
 
 void CommandQueue::wrap(DeviceCommand::WrapRegion wrap_region, bool blocking) {
@@ -1150,6 +1212,7 @@ void EnqueueProgram(CommandQueue& cq, Program& program, bool blocking, std::opti
     detail::ValidateCircularBufferRegion(program, cq.device);
 
     cq.enqueue_program(program, trace, blocking);
+    std::cout << " done enqueue program " << std::endl;
 }
 
 void Finish(CommandQueue& cq) {

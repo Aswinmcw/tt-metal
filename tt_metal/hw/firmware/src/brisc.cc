@@ -302,6 +302,7 @@ int main() {
     kernel_profiler::init_profiler();
     while (1) {
 
+        DPRINT << "DPRINT brisc here 0" << ENDL();
         init_sync_registers();
         assert_just_ncrisc_reset();
 
@@ -339,6 +340,7 @@ int main() {
             noc_local_state_init(noc_index);
         }
         DEBUG_STATUS('D');
+        DPRINT << "DPRINT brisc here 1" << ENDL();
 
         wait_ncrisc_trisc();
 
@@ -347,6 +349,7 @@ int main() {
         // Not including any dispatch related code
         kernel_profiler::mark_time(CC_MAIN_END);
 
+        DPRINT << "DPRINT brisc here 2" << ENDL();
         // Notify dispatcher core that it has completed
         if (mailboxes->launch.mode == DISPATCH_MODE_DEV) {
             uint64_t dispatch_addr = NOC_XY_ADDR(NOC_X(DISPATCH_CORE_X), NOC_Y(DISPATCH_CORE_Y), DISPATCH_MESSAGE_ADDR);

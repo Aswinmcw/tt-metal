@@ -185,7 +185,7 @@ bool writer_kernel_no_receive(
     return pass;
 }
 
-TEST_F(N300DeviceFixture, EthKernelsNocReadNoSend) {
+TEST_F(DeviceFixture, EthKernelsNocReadNoSend) {
     const auto& device_0 = devices_.at(0);
     const auto& device_1 = devices_.at(1);
 
@@ -254,7 +254,7 @@ bool eth_direct_sender_receiver_kernels(
     const CoreCoord& eth_receiver_core,
     uint32_t num_bytes_per_send = 16) {
     bool pass = true;
-    log_debug(
+    log_info(
         tt::LogTest,
         "Sending {} bytes from device {} eth core {} addr {} to device {} eth core {} addr {}",
         byte_size,

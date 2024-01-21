@@ -46,7 +46,10 @@ struct KernelGroup {
         std::optional<KernelHandle> erisc_id,
         int last_cb_index,
         const CoreRangeSet &new_ranges);
+
+    CoreType get_core_type() const;
 };
+
 
 class Program {
     friend class KernelGroup;

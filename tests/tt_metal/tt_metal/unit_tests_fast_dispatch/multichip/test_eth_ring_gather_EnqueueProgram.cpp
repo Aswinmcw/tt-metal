@@ -8,8 +8,7 @@
 #include <functional>
 #include <random>
 
-#include "device_fixture.hpp"
-#include "n300_device_fixture.hpp"
+#include "command_queue_fixture.hpp"
 #include "tt_metal/detail/tt_metal.hpp"
 #include "tt_metal/host_api.hpp"
 #include "tt_metal/impl/kernels/kernel.hpp"
@@ -25,6 +24,8 @@ using namespace tt::test_utils::df;
 constexpr std::int32_t WORD_SIZE = 16;  // 16 bytes per eth send packet
 constexpr std::int32_t MAX_NUM_WORDS =
     (eth_l1_mem::address_map::MAX_L1_LOADING_SIZE - eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE) / WORD_SIZE;
+constexpr std::int32_t MAX_BUFFER_SIZE =
+    (eth_l1_mem::address_map::MAX_L1_LOADING_SIZE - eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE);
 
 struct BankedConfig {
     size_t num_pages = 1;
@@ -157,17 +158,8 @@ std::vector<std::tuple<Device*, Device*, CoreCoord, CoreCoord>> get_sender_recei
     return sender_receivers;
 }
 
-namespace unit_tests::erisc::kernels {
+namespace fd_unit_tests::erisc::kernels {
 
-/*
- *
- *                                         ███████╗████████╗██╗░░██╗
- *                                         ██╔════╝╚══██╔══╝██║░░██║
- *                                         █████╗░░░░░██║░░░███████║
- *                                         ██╔══╝░░░░░██║░░░██╔══██║
- *                                         ███████╗░░░██║░░░██║░░██║
- *                                         ╚══════╝░░░╚═╝░░░╚═╝░░╚═╝
- */
 bool eth_direct_ring_gather_sender_receiver_kernels(
     std::vector<tt::tt_metal::Device*> device_ring,
     const size_t& byte_size_per_device,
@@ -188,7 +180,6 @@ bool eth_direct_ring_gather_sender_receiver_kernels(
     full_input.reserve(numel * sender_receivers.size());
 
     for (uint32_t i = 0; i < sender_receivers.size(); ++i) {
-      std::cout << " sender receiver pair " << i << std::endl;
         inputs.emplace_back(
             generate_uniform_random_vector<uint32_t>(0, 100, byte_size_per_device / sizeof(uint32_t), i));
         full_input.insert(full_input.begin() + i * numel, inputs[i].begin(), inputs[i].end());
@@ -282,24 +273,23 @@ bool eth_direct_ring_gather_sender_receiver_kernels(
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    //                      Execute Programs
+    //                      Compile and Execute Application
     ////////////////////////////////////////////////////////////////////////////
 
-    std::vector<std::thread> ths;
-    ths.reserve(sender_receivers.size());
+    std::vector<CommandQueue> cqs;
     for (uint32_t i = 0; i < sender_receivers.size(); ++i) {
+      std::cout << " HOST  enqueue program " << std::endl;
         const auto& device = std::get<0>(sender_receivers[i]);
-        std::cout << " sendiner receiver " << device->id() << std::endl;
-        ths.emplace_back([&] {
-            std::cout << " program "<< std::endl;
+        tt::tt_metal::detail::CompileProgram(device, programs.at(device->id()));
+        auto &cq = tt::tt_metal::detail::GetCommandQueue(device);
 
-            tt_metal::detail::LaunchProgram(device, programs.at(device->id()));
-            });
+        EnqueueProgram(cq, programs.at(device->id()), false);
+        cqs.emplace_back(cq);
     }
-    std::cout << "ths " << ths.size() << std::endl;
-    for (auto& th : ths) {
-        th.join();
+    for (auto& cq : cqs) {
+        Finish(cq);
     }
+
     for (uint32_t i = 0; i < sender_receivers.size(); ++i) {
         const auto& device = std::get<0>(sender_receivers[i]);
         const auto& core = std::get<2>(sender_receivers[i]);
@@ -431,18 +421,22 @@ bool eth_interleaved_ring_gather_sender_receiver_kernels(
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    //                      Execute Programs
+    //                      Compile and Execute Application
     ////////////////////////////////////////////////////////////////////////////
 
-    std::vector<std::thread> ths;
-    ths.reserve(sender_receivers.size());
+    std::vector<CommandQueue> cqs;
     for (uint32_t i = 0; i < sender_receivers.size(); ++i) {
         const auto& device = std::get<0>(sender_receivers[i]);
-        ths.emplace_back([&] { tt_metal::detail::LaunchProgram(device, programs.at(device->id())); });
+        tt::tt_metal::detail::CompileProgram(device, programs.at(device->id()));
+        auto &cq = tt::tt_metal::detail::GetCommandQueue(device);
+
+        EnqueueProgram(cq, programs.at(device->id()), false);
+        cqs.emplace_back(cq);
     }
-    for (auto& th : ths) {
-        th.join();
+    for (auto& cq : cqs) {
+        Finish(cq);
     }
+
     for (uint32_t i = 0; i < sender_receivers.size(); ++i) {
         const auto& device = std::get<0>(sender_receivers[i]);
         const auto& core = std::get<2>(sender_receivers[i]);
@@ -460,10 +454,9 @@ bool eth_interleaved_ring_gather_sender_receiver_kernels(
 
     return pass;
 }
+}  // namespace fd_unit_tests::erisc::kernels
 
-}  // namespace unit_tests::erisc::kernels
-
-TEST_F(DeviceFixture, EthKernelsDirectRingGatherAllChips) {
+TEST_F(CommandQueuePCIDevicesFixture, EthKernelsDirectRingGatherAllChips) {
     const size_t src_eth_l1_byte_address = eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE + 32;
     const size_t dst_eth_l1_byte_address = eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE + 32;
     const size_t sem_l1_byte_address = eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE;
@@ -471,11 +464,11 @@ TEST_F(DeviceFixture, EthKernelsDirectRingGatherAllChips) {
     if (device_ring.empty()) {
         GTEST_SKIP();
     }
-    ASSERT_TRUE(unit_tests::erisc::kernels::eth_direct_ring_gather_sender_receiver_kernels(
+    ASSERT_TRUE(fd_unit_tests::erisc::kernels::eth_direct_ring_gather_sender_receiver_kernels(
         device_ring, WORD_SIZE, src_eth_l1_byte_address, dst_eth_l1_byte_address, sem_l1_byte_address));
 }
 
-TEST_F(DeviceFixture, EthKernelsInterleavedRingGatherAllChips) {
+TEST_F(CommandQueuePCIDevicesFixture, EthKernelsInterleavedRingGatherAllChips) {
     const size_t src_eth_l1_byte_address = eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE + 32;
     const size_t dst_eth_l1_byte_address = eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE + 32;
     const size_t sem_l1_byte_address = eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE;
@@ -485,6 +478,6 @@ TEST_F(DeviceFixture, EthKernelsInterleavedRingGatherAllChips) {
     if (device_ring.empty()) {
         GTEST_SKIP();
     }
-    ASSERT_TRUE(unit_tests::erisc::kernels::eth_interleaved_ring_gather_sender_receiver_kernels(
+    ASSERT_TRUE(fd_unit_tests::erisc::kernels::eth_interleaved_ring_gather_sender_receiver_kernels(
         device_ring, test_config, src_eth_l1_byte_address, dst_eth_l1_byte_address, sem_l1_byte_address));
 }

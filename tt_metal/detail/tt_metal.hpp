@@ -584,6 +584,8 @@ namespace tt::tt_metal{
                         uint32_t host_finish_addr = HOST_CQ_FINISH_PTR + get_absolute_cq_offset(channel, cq_id, cq_size);
                         std::vector<uint32_t> consumer_compile_args = {host_completion_queue_write_ptr_addr, completion_queue_start_addr, completion_queue_size, host_finish_addr, consumer_cmd_base_addr, consumer_data_buff_size};
 
+                          std::cout << " issue q logical core " << issue_q_logical_core.str() << " " <<
+                          device->worker_core_from_logical_core(issue_q_logical_core).str() << std::endl;
                         std::string issue_q_reader_kernel = (device_id == device->id()) ? "tt_metal/impl/dispatch/kernels/command_queue_producer.cpp" : "tt_metal/impl/dispatch/kernels/remote_issue_queue_reader.cpp";
 
                         tt::tt_metal::CreateKernel(
@@ -603,6 +605,8 @@ namespace tt::tt_metal{
                         // Currently remote device dispatch completion queue interface has not been brought up
                         // This will be updated with https://github.com/tenstorrent-metal/tt-metal/issues/3949
                         if (device_id == device->id()) {
+                          std::cout << " completion q logical core " << completion_q_logical_core.str() << " " <<
+                          device->worker_core_from_logical_core(completion_q_logical_core).str() << std::endl;
                             tt::tt_metal::CreateKernel(
                                 *command_queue_program_ptr,
                                 "tt_metal/impl/dispatch/kernels/command_queue_consumer.cpp",

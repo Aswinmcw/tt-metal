@@ -14,6 +14,7 @@
 #include "circular_buffer.h"
 
 #include "debug/status.h"
+#include "debug/dprint.h"
 
 uint32_t halt_stack_ptr_save;
 
@@ -59,7 +60,9 @@ int main(int argc, char *argv[]) {
       setup_cb_read_write_interfaces(0, mailboxes->launch.max_cb_index, true, true);
 
       DEBUG_STATUS('R');
+      DPRINT << " DPRINT ncrisc kernel init " << ENDL();
       kernel_init();
+      DPRINT << " DPRINT ncrisc kernel done " << ENDL();
       DEBUG_STATUS('D');
 
       kernel_profiler::mark_time(CC_MAIN_END);
