@@ -6,18 +6,33 @@
 #include "dataflow_api.h"
 
 void kernel_main() {
+    uint32_t i = 0;
     // same arg indices as in reader_binary_diff_lenghts for compat
-    uint32_t src0_addr            = get_arg_val<uint32_t>(0);
-    uint32_t src1_addr            = get_arg_val<uint32_t>(1);
-    uint32_t Mt                   = get_arg_val<uint32_t>(2);
-    uint32_t Kt                   = get_arg_val<uint32_t>(3);
-    uint32_t Nt                   = get_arg_val<uint32_t>(4);
-    uint32_t MtKt                 = get_arg_val<uint32_t>(5); // if 0
-    uint32_t in1_KtNt_skip        = get_arg_val<uint32_t>(6); // 0 if in0 and in1 Kt are the same
-    uint32_t in1_KtNt_mul_32      = get_arg_val<uint32_t>(7);
-    uint32_t blocks               = get_arg_val<uint32_t>(8);
-    uint32_t in0_start_id         = get_arg_val<uint32_t>(9);
-    uint32_t in1_start_id         = get_arg_val<uint32_t>(10);
+    uint32_t src0_addr            = get_arg_val<uint32_t>(i++);
+    uint32_t src1_addr            = get_arg_val<uint32_t>(i++);
+    uint32_t Mt                   = get_arg_val<uint32_t>(i++);
+    uint32_t Kt                   = get_arg_val<uint32_t>(i++);
+    uint32_t Nt                   = get_arg_val<uint32_t>(i++);
+    uint32_t MtKt                 = get_arg_val<uint32_t>(i++); // if 0
+    uint32_t in1_KtNt_skip        = get_arg_val<uint32_t>(i++); // 0 if in0 and in1 Kt are the same
+    uint32_t in1_KtNt_mul_32      = get_arg_val<uint32_t>(i++);
+    uint32_t blocks               = get_arg_val<uint32_t>(i++);
+    uint32_t in0_start_id         = get_arg_val<uint32_t>(i++);
+    uint32_t in1_start_id         = get_arg_val<uint32_t>(i++);
+
+    uint32_t act_mcast_dest_noc_start_x                  = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_dest_noc_start_y                  = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_dest_noc_end_x                    = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_dest_noc_end_y                    = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_num_dests                         = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_num_cores                         = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_sender_semaphore_addr             = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_receiver_semaphore_addr           = get_arg_val<uint32_t>(i++);
+
+    uint32_t act_mcast_sender_size_bytes                 = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_sender_id                         = get_arg_val<uint32_t>(i++);
+    uint32_t act_mcast_sender_noc_x                      = get_arg_val<uint32_t>(i++);
+    volatile tt_l1_ptr uint32_t *act_mcast_sender_noc_y  = (volatile tt_l1_ptr uint32_t*)(get_arg_addr(i));
 
     constexpr bool src0_is_dram = get_compile_time_arg_val(0) == 1;
     constexpr bool src1_is_dram = get_compile_time_arg_val(1) == 1;

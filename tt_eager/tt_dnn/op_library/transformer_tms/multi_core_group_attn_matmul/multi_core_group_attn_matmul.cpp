@@ -45,6 +45,7 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
     auto num_output_blocks_total = ashape[1]; // ashape[1] is Q num_heads; only parallelize on this
     auto [num_cores, all_cores, core_group_1, core_group_2, num_output_blocks_per_core_group_1, num_output_blocks_per_core_group_2] = split_work_to_cores(compute_with_storage_grid_size, num_output_blocks_total);
 
+    // Load kernels on all device cores, because we use cached program for input shapes with changing shapes
     auto all_device_cores = CoreRange({0, 0}, {a.device()->compute_with_storage_grid_size().x - 1, a.device()->compute_with_storage_grid_size().y - 1});
     auto total_num_cores = a.device()->compute_with_storage_grid_size().x * a.device()->compute_with_storage_grid_size().y;
 
@@ -75,6 +76,15 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
     uint32_t src1_addr = src1_buffer->address();
     uint32_t dst_addr = dst_buffer->address();
 
+    // Mcast args
+    auto in1_mcast_sender_semaphore = tt_metal::CreateSemaphore(program, all_device_cores, INVALID);
+    auto in1_mcast_receiver_semaphore = tt_metal::CreateSemaphore(program, all_device_cores, INVALID);
+    CoreRange all_cores_grid = all_cores.bounding_box();
+    CoreCoord top_left_core = all_cores_grid.start;
+    CoreCoord bottom_right_core = all_cores_grid.end;
+    auto top_left_core_physical = device->worker_core_from_logical_core(top_left_core);
+    auto bottom_right_core_physical = device->worker_core_from_logical_core(bottom_right_core);
+
     uint32_t src0_cb_index = CB::c_in0;
     uint32_t cb0_num_input_tiles = Kt * 2;
     tt_metal::CircularBufferConfig src0_cb_config = tt_metal::CircularBufferConfig(cb0_num_input_tiles * in0_single_tile_size, {{src0_cb_index, in0_data_format}})
@@ -90,17 +100,17 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
     uint32_t cb_intermed0_index = CB::c_intermed0;
     tt_metal::CircularBufferConfig cb_interm0_config = tt_metal::CircularBufferConfig(1 * interm_single_tile_size, {{cb_intermed0_index, interm_data_format}})
 		.set_page_size(cb_intermed0_index, interm_single_tile_size);
-    auto cb_interm0 = tt_metal::CreateCircularBuffer(program, all_cores, cb_interm0_config);
+    auto cb_interm0 = tt_metal::CreateCircularBuffer(program, all_device_cores, cb_interm0_config);
 
     uint32_t cb_intermed1_index = CB::c_intermed1;
     tt_metal::CircularBufferConfig cb_interm1_config = tt_metal::CircularBufferConfig(1 * interm_single_tile_size, {{cb_intermed1_index, interm_data_format}})
 		.set_page_size(cb_intermed1_index, interm_single_tile_size);
-    auto cb_interm1 = tt_metal::CreateCircularBuffer(program, all_cores, cb_interm1_config);
+    auto cb_interm1 = tt_metal::CreateCircularBuffer(program, all_device_cores, cb_interm1_config);
 
     uint32_t cb_intermed2_index = CB::c_intermed2;
     tt_metal::CircularBufferConfig cb_interm2_config = tt_metal::CircularBufferConfig(1 * interm_single_tile_size, {{cb_intermed2_index, interm_data_format}})
 		.set_page_size(cb_intermed2_index, interm_single_tile_size);
-    auto cb_interm2 = tt_metal::CreateCircularBuffer(program, all_cores, cb_interm2_config);
+    auto cb_interm2 = tt_metal::CreateCircularBuffer(program, all_device_cores, cb_interm2_config);
 
     uint32_t output_cb_index = CB::c_out0; // output operands start at index 16
     uint32_t num_output_tiles = 2;
@@ -122,17 +132,29 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
         (std::uint32_t) dst_is_dram
     };
 
+    tt_metal::NOC reader_noc = tt_metal::detail::GetPreferredNOCForDRAMRead(tt::Cluster::instance().arch());
+    tt_metal::NOC writer_noc = reader_noc == tt_metal::NOC::NOC_0 ? tt_metal::NOC::NOC_1 : tt_metal::NOC::NOC_0;
     auto reader_id = tt_metal::CreateKernel(
         program,
         "tt_eager/tt_dnn/op_library/transformer_tms/kernels/dataflow/reader_mcast_transformer_group_attn_matmul.cpp",
         all_device_cores,
-        tt_metal::ReaderDataMovementConfig{.compile_args = reader_compile_time_args});
+        tt_metal::DataMovementConfig{
+            .processor = tt_metal::DataMovementProcessor::RISCV_1,
+            .noc = reader_noc,
+            .compile_args = reader_compile_time_args,
+        }
+    );
 
     auto writer_id = tt_metal::CreateKernel(
         program,
         "tt_eager/tt_dnn/kernels/dataflow/writer_unary_interleaved_start_id.cpp",
         all_device_cores,
-        tt_metal::WriterDataMovementConfig{.compile_args = writer_compile_time_args});
+        tt_metal::DataMovementConfig{
+            .processor = tt_metal::DataMovementProcessor::RISCV_0,
+            .noc = writer_noc,
+            .compile_args = writer_compile_time_args,
+        }
+    );
 
     vector<uint32_t> compute_args = {
         (uint32_t) transpose_hw_bool, // transpose_hw for matmul_init
@@ -170,10 +192,23 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
                 Nt,
                 MtKt,
                 in1_KtNt_skip, // Skip to get next batch for in1 after reading in0 Kt
-                in1_KtNt_stride * TILE_HEIGHT, // itileB stride; skips 32 * KtNt in bshape[0] for one block of MtNt
+                in1_KtNt_stride * TILE_HEIGHT, // in1 stride; skips 32 * KtNt in bshape[0] for one block of MtNt
                 num_output_blocks_per_core,
-                num_blocks_written * MtKt, // itileA_start
-                0, // itileB_start; always read in same in1 per core TODO: multi-cast
+                num_blocks_written * MtKt, // in0_start_id
+                0, // in1_start_id; always read in same in1 per core TODO: multi-cast
+
+                // mcast args
+                (uint32_t) top_left_core_physical.x, // in1_mcast_dest_noc_start_x
+                (uint32_t) top_left_core_physical.y, // in1_mcast_dest_noc_start_y
+                (uint32_t) bottom_right_core_physical.x, // in1_mcast_dest_noc_end_x
+                (uint32_t) bottom_right_core_physical.y, // in1_mcast_dest_noc_end_y
+                //num_cores_y - 1,
+                //num_cores_y - 1,
+                //act_mcast_sender_semaphore,
+                //act_mcast_receiver_semaphore,
+                //in0_block_num_tiles * tilized_act_tile_size, // act_mcast_sender_size_bytes
+                //core_y_i, // act_mcast_sender_id (goes down the column)
+                //(uint32_t) bottom_core_physical.x, // act_mcast_sender_noc_x
             }
         );
 
@@ -284,10 +319,10 @@ operation::ProgramWithCallbacks multi_core_group_attn_matmul(const Tensor &a, co
                     Nt,
                     MtKt,
                     in1_KtNt_skip, // Skip to get next batch for in1 after reading in0 Kt
-                    in1_KtNt_stride * TILE_HEIGHT, // itileB stride; skips 32 * KtNt in bshape[0] for one block of MtNt
+                    in1_KtNt_stride * TILE_HEIGHT, // in1 stride; skips 32 * KtNt in bshape[0] for one block of MtNt
                     num_output_blocks_per_core,
-                    num_blocks_written * MtKt, // itileA_start
-                    0, // itileB_start; always read in same in1 per core TODO: multi-cast
+                    num_blocks_written * MtKt, // in0_start_id
+                    0, // in1_start_id; always read in same in1 per core TODO: multi-cast
                 }
             );
 
