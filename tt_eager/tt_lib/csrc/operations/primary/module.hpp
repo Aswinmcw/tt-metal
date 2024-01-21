@@ -10,6 +10,7 @@
 #include "transformers/module.hpp"
 #include "tt_dnn/op_library/bmm/bmm_op.hpp"
 #include "tt_dnn/op_library/layernorm/layernorm_op.hpp"
+#include "tt_dnn/op_library/moreh_adam/moreh_adam_op.hpp"
 #include "tt_dnn/op_library/moreh_layernorm/moreh_layernorm_op.hpp"
 #include "tt_dnn/op_library/moreh_layernorm_backward/moreh_layernorm_backward_op.hpp"
 #include "tt_dnn/op_library/moreh_matmul/moreh_matmul_op.hpp"
@@ -382,6 +383,27 @@ void py_module(py::module& m_primary) {
         py::arg("program_config").noconvert() = LayerNormDefaultProgramConfig{},
         R"doc(
             Performs a layernorm(a+b)*gamma + beta operation.
+        )doc");
+
+    // moreh_adam
+    m_primary.def(
+        "moreh_adam",
+        &moreh_adam,
+        py::arg("param").noconvert(),
+        py::arg("grad").noconvert(),
+        py::arg("exp_avg").noconvert(),
+        py::arg("exp_avg_sq").noconvert(),
+        py::arg("lr").noconvert(),
+        py::arg("beta1").noconvert(),
+        py::arg("beta2").noconvert(),
+        py::arg("eps").noconvert(),
+        py::arg("weight_decay").noconvert(),
+        py::arg("step").noconvert(),
+        py::arg("amsgrad").noconvert(),
+        py::arg("max_exp_avg_sq").noconvert() = std::nullopt,
+        py::arg("output_mem_config").noconvert() = operation::DEFAULT_OUTPUT_MEMORY_CONFIG,
+        R"doc(
+        "Performs a moreh_adam operation.
         )doc");
 
     // moreh_matmul
