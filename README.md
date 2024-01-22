@@ -159,22 +159,22 @@ sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 
 #### Installing test dependencies
   Doxygen version >=1.9 && <1.10
 ```
-  git clone [https://github.com/doxygen/doxygen.git](https://github.com/doxygen/doxygen.git) && cd doxygen/
-  git checkout Release_1_9_8
-  mkdir build && cd build
-  cmake ..
-  make -j$(nproc)
-  sudo make install
+git clone https://github.com/doxygen/doxygen.git && cd doxygen/
+git checkout Release_1_9_8
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
 ```
    
   Gtest version 1.13
 ```
-  git clone [https://github.com/doxygen/doxygen.git](https://github.com/google/googletest.git) && cd googletest/
-  git checkout v1.13.0
-  mkdir build && cd build
-  cmake ..
-  make -j$(nproc)
-  sudo make install
+git clone https://github.com/doxygen/doxygen.git && cd googletest/
+git checkout v1.13.0
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
 ```
     
 
@@ -223,9 +223,10 @@ git submodule foreach 'git lfs fetch --all && git lfs pull'
    want to use this project**.
 
 ```
-export ARCH_NAME=<arch name>
-export TT_METAL_HOME=<this repo dir>
-export PYTHONPATH=<this repo dir>
+#Assuming you are in home dir of tt-metal repo
+export ARCH_NAME=grayskull or wormhole_b0
+export TT_METAL_HOME=$(pwd)
+export PYTHONPATH=$(pwd)
 export TT_METAL_ENV=dev
 ```
 
