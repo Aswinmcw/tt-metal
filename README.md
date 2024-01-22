@@ -76,8 +76,8 @@ System-level dependencies include the third-party libraries and hugepages settin
 First, perform an update and install the dependencies:
 
 ```
-sudo apt update
-sudo apt install software-properties-common=0.99.9.12 build-essential=12.8ubuntu1.1 python3.8-venv=3.8.10-0ubuntu1~20.04.9 libgoogle-glog-dev=0.4.0-1build1 libyaml-cpp-dev=0.6.2-4ubuntu1 libboost-all-dev=1.71.0.0ubuntu2 libsndfile1=1.0.28-7ubuntu0.2 libhwloc-dev
+sudo apt update && sudo apt upgrade
+sudo apt install software-properties-common=0.99.9.12 build-essential=12.8ubuntu1.1 python3.8-venv=3.8.10-0ubuntu1~20.04.9 libgoogle-glog-dev=0.4.0-1build1 libyaml-cpp-dev=0.6.2-4ubuntu1 libboost-all-dev=1.71.0.0ubuntu2 libsndfile1=1.0.28-7ubuntu0.2 libhwloc-dev python3-pip requests
 ```
 
 2. Now continue to following sections to [install](#installing-accelerator-level-dependencies) accelerator-level dependencies and then the [required](#installing-system-level-dependencies-after-accelerator-level-dependencies) system-level dependencies that require the driver.
@@ -149,14 +149,32 @@ sudo -E python3 setup_hugepages.py enable && sudo -E python3 setup_hugepages.py 
 1. Install system-level dependencies for development through `apt`.
 
 ```
-sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 pandoc libtbb-dev libcapstone-dev pkg-config
+sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 pandoc libtbb-dev libcapstone-dev pkg-config flex bison
 ```
 
 2. Download and install [Doxygen](https://www.doxygen.nl/download.html), version 1.9 or higher, but less than 1.10.
 
 3. Download and install [gtest](https://github.com/google/googletest) from source, version 1.13, and no higher.
 
-4. If you are working on experimental, internal model development, you must now also install and mount WekaFS. Note that this is only available on Tenstorrent cloud machines. The instructions are on this [page](https://github.com/tenstorrent-metal/metal-internal-workflows/wiki/Installing-Metal-development-dependencies-on-a-TT-Cloud-VM), which are only available to those who have access to the Tenstorrent cloud. Otherwise, you may skip this step if you are not working on such models. If you are a regular user of this software, you do not need WekaFS.
+4. Install test dependencies from here
+
+5. If you are working on experimental, internal model development, you must now also install and mount WekaFS. Note that this is only available on Tenstorrent cloud machines. The instructions are on this [page](https://github.com/tenstorrent-metal/metal-internal-workflows/wiki/Installing-Metal-development-dependencies-on-a-TT-Cloud-VM), which are only available to those who have access to the Tenstorrent cloud. Otherwise, you may skip this step if you are not working on such models. If you are a regular user of this software, you do not need WekaFS.
+
+#### Installing test dependencies
+1.  Doxygen version >=1.9 && <1.10
+    git clone [https://github.com/doxygen/doxygen.git](https://github.com/doxygen/doxygen.git) && cd doxygen/
+    git checkout Release_1_9_8
+    mkdir build && cd build
+    cmake ..
+    make -j$(nproc)
+    sudo make install
+2.  Gtest version 1.13
+    git clone [https://github.com/doxygen/doxygen.git](https://github.com/google/googletest.git) && cd googletest/
+    git checkout v1.13.0
+    mkdir build && cd build
+    cmake ..
+    make -j$(nproc)
+    sudo make install
 
 #### About wheel installation
 
