@@ -162,13 +162,13 @@ sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 
 
 #### Installing test dependencies
 1.  Doxygen version >=1.9 && <1.10
-    git clone [https://github.com/doxygen/doxygen.git](https://github.com/doxygen/doxygen.git) && cd doxygen/
-    git checkout Release_1_9_8
+    -git clone [https://github.com/doxygen/doxygen.git](https://github.com/doxygen/doxygen.git) && cd doxygen/
+    -git checkout Release_1_9_8
     mkdir build && cd build
     cmake ..
     make -j$(nproc)
     sudo make install
-2.  Gtest version 1.13
+3.  Gtest version 1.13
     git clone [https://github.com/doxygen/doxygen.git](https://github.com/google/googletest.git) && cd googletest/
     git checkout v1.13.0
     mkdir build && cd build
