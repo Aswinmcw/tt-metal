@@ -158,20 +158,24 @@ sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 
 
 #### Installing test dependencies
   Doxygen version >=1.9 && <1.10
-2.  git clone [https://github.com/doxygen/doxygen.git](https://github.com/doxygen/doxygen.git) && cd doxygen/
-3.  git checkout Release_1_9_8
-4.  mkdir build && cd build
-5.  cmake ..
-6.  make -j$(nproc)
-7.  sudo make install
+```
+  git clone [https://github.com/doxygen/doxygen.git](https://github.com/doxygen/doxygen.git) && cd doxygen/
+  git checkout Release_1_9_8
+  mkdir build && cd build
+  cmake ..
+  make -j$(nproc)
+  sudo make install
+```
    
   Gtest version 1.13
-2.  git clone [https://github.com/doxygen/doxygen.git](https://github.com/google/googletest.git) && cd googletest/
-3.  git checkout v1.13.0
-4.  mkdir build && cd build
-5.  cmake ..
-6.  make -j$(nproc)
-7.  sudo make install
+```
+  git clone [https://github.com/doxygen/doxygen.git](https://github.com/google/googletest.git) && cd googletest/
+  git checkout v1.13.0
+  mkdir build && cd build
+  cmake ..
+  make -j$(nproc)
+  sudo make install
+```
     
 
 #### About wheel installation
