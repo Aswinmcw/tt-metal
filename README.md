@@ -157,7 +157,7 @@ sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 
 3. If you are working on experimental, internal model development, you must now also install and mount WekaFS. Note that this is only available on Tenstorrent cloud machines. The instructions are on this [page](https://github.com/tenstorrent-metal/metal-internal-workflows/wiki/Installing-Metal-development-dependencies-on-a-TT-Cloud-VM), which are only available to those who have access to the Tenstorrent cloud. Otherwise, you may skip this step if you are not working on such models. If you are a regular user of this software, you do not need WekaFS.
 
 #### Installing test dependencies
-1.  Doxygen version >=1.9 && <1.10
+  Doxygen version >=1.9 && <1.10
 2.  git clone [https://github.com/doxygen/doxygen.git](https://github.com/doxygen/doxygen.git) && cd doxygen/
 3.  git checkout Release_1_9_8
 4.  mkdir build && cd build
@@ -165,7 +165,7 @@ sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 
 6.  make -j$(nproc)
 7.  sudo make install
    
-1.  Gtest version 1.13
+  Gtest version 1.13
 2.  git clone [https://github.com/doxygen/doxygen.git](https://github.com/google/googletest.git) && cd googletest/
 3.  git checkout v1.13.0
 4.  mkdir build && cd build
