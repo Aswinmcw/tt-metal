@@ -12,6 +12,7 @@
          * [Installing dependencies on Ubuntu (after accelerator-level)](#installing-dependencies-on-ubuntu-after-accelerator-level)
       * [Step 4. Installing developer dependencies](#step-4-installing-developer-dependencies)
          * [Installing developer-level dependencies on Ubuntu](#installing-developer-level-dependencies-on-ubuntu)
+         * [Installing test dependencies](#installing-test-dependencies)
          * [About wheel installation](#about-wheel-installation)
       * [From source](#from-source)
    * [Getting started](#getting-started)
