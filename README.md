@@ -128,7 +128,11 @@ NOTE: If you are using Cloud Machine(VM) from TensTorrent Cloud, you need to fol
 
 #### Installing dependencies on Ubuntu (after accelerator-level)
 
-1. Download the raw latest version of the `setup_hugepages.py` script. It should be located [in the repository](https://github.com/tenstorrent-metal/tt-metal/blob/main/infra/machine_setup/scripts/setup_hugepages.py).
+1. Download the raw latest version of the `setup_hugepages.py` script. It should be located [in the repository](https://github.com/tenstorrent-metal/tt-metal/blob/main/infra/machine_setup/scripts/setup_hugepages.py) or use,
+```
+wget https://github.com/tenstorrent-metal/tt-metal/blob/main/infra/machine_setup/scripts/setup_hugepages.py
+```
+
 
 2. Invoke the first pass of the hugepages script and then reboot.
 
