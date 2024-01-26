@@ -120,6 +120,8 @@ Please refer to the Tenstorrent [tt-smi](https://github.com/tenstorrent/tt-smi) 
 
 If you are a developer, you should also go through the [section](#installing-developer-dependencies), in addition to any system-level dependencies required after these accelerator-level dependencies.
 
+NOTE: If you are using Cloud Machine(VM) from TensTorrent Cloud, you need to follow additional steps. Once you have done setup for both tt-flash and tt-smi, you need to contact TT Cloud team to do host reboot to make the device work, which is not possible within VM.
+
 ### Step 3. Installing system-level dependencies (after accelerator-level dependencies)
 
 #### Installing dependencies on Ubuntu (after accelerator-level)
