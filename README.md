@@ -102,66 +102,35 @@ For Wormhole B0:
 
 The instructions for installing TTKMD, `tt-flash`, and `tt-smi` follow.
 
-You can either clone the respective repo and follow the instructions mentioned in it or simple run the below commands to install it in your machine.
+Clone the respective repo and follow the instructions mentioned in it.
 
 #### Installing TTKMD (kernel-mode driver)
 
 Please refer to the Tenstorrent [tt-kmd](https://github.com/tenstorrent/tt-kmd) page to get the specific version you need and install.
-```
-git clone https://github.com/tenstorrent/tt-kmd.git
-cd tt-kmd
-sudo apt install dkms
-sudo dkms add .
-sudo dkms install tenstorrent/1.26
-sudo modprobe tenstorrent
-sudo reboot
-```
 
 #### Installing `tt-flash` firmware
 
 Please refer to the Tenstorrent [tt-flash](https://github.com/tenstorrent/tt-flash) page to get the tt-flash tool.
-```
-git clone https://github.com/tenstorrent/tt-flash.git
-cd tt-flash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source "$HOME/.cargo/env"
-pip install .
-```
 
 You will need to flash your accelerator with the specific version of firmware blob you are looking to install.
 
 The firmware blob for Grayskull should be available [here](https://github.com/tenstorrent/tt-firmware-gs).
-```
-wget https://github.com/tenstorrent/tt-firmware-gs/blob/main/fw_pack-80.4.0.0_acec1267.tar.gz
-tt-flash --fw-tar fw_pack-80.4.0.0_acec1267.tar.gz --force
-```
 
 #### Installing `tt-smi`
 
 Please refer to the Tenstorrent [tt-smi](https://github.com/tenstorrent/tt-smi) page to get the specific version you need and install.
 
-```
-git clone https://github.com/tenstorrent/tt-smi.git
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source "$HOME/.cargo/env"
-pip install .
-```
-
 If you are a developer, you should also go through the [section](#installing-developer-dependencies), in addition to any system-level dependencies required after these accelerator-level dependencies.
 
 NOTE: If you are using Cloud Machine(VM) from TensTorrent Cloud, you need to follow additional steps. Once you have done setup for both tt-flash and tt-smi, you need to contact TT Cloud team to do host reboot to make the device work, which is not possible within VM.
 
-After successful installation, ``tt-smi`` command will show the gui of the hardware installed in the machine
+After reboot, ``tt-smi`` command will work.
 
 ### Step 3. Installing system-level dependencies (after accelerator-level dependencies)
 
 #### Installing dependencies on Ubuntu (after accelerator-level)
 
 1. Download the raw latest version of the `setup_hugepages.py` script. It should be located [in the repository](https://github.com/tenstorrent-metal/tt-metal/blob/main/infra/machine_setup/scripts/setup_hugepages.py) or use,
-```
-wget https://github.com/tenstorrent-metal/tt-metal/blob/main/infra/machine_setup/scripts/setup_hugepages.py
-```
-
 
 2. Invoke the first pass of the hugepages script and then reboot.
 
@@ -186,7 +155,7 @@ sudo -E python3 setup_hugepages.py enable && sudo -E python3 setup_hugepages.py 
 1. Install system-level dependencies for development through `apt`.
 
 ```
-sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 pandoc libtbb-dev libcapstone-dev pkg-config flex bison libfmt-dev
+sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 pandoc libtbb-dev libcapstone-dev pkg-config libfmt-dev
 ```
 
 2. Install Doxygen >=1.9 && <1.10
