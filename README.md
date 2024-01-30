@@ -207,7 +207,7 @@ sudo make install
    
   Gtest version 1.13
 ```
-git clone https://github.com/doxygen/doxygen.git && cd googletest/
+git clone https://github.com/google/googletest.git && cd googletest/
 git checkout v1.13.0
 mkdir build && cd build
 cmake ..
