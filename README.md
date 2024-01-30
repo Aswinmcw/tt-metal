@@ -12,7 +12,6 @@
          * [Installing dependencies on Ubuntu (after accelerator-level)](#installing-dependencies-on-ubuntu-after-accelerator-level)
       * [Step 4. Installing developer dependencies](#step-4-installing-developer-dependencies)
          * [Installing developer-level dependencies on Ubuntu](#installing-developer-level-dependencies-on-ubuntu)
-         * [Installing test dependencies](#installing-test-dependencies)
          * [About wheel installation](#about-wheel-installation)
       * [From source](#from-source)
    * [Getting started](#getting-started)
@@ -190,12 +189,7 @@ sudo -E python3 setup_hugepages.py enable && sudo -E python3 setup_hugepages.py 
 sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 pandoc libtbb-dev libcapstone-dev pkg-config flex bison libfmt-dev
 ```
 
-2. Install test dependencies from [here](#Installing-test-dependencies)
-
-3. If you are working on experimental, internal model development, you must now also install and mount WekaFS. Note that this is only available on Tenstorrent cloud machines. The instructions are on this [page](https://github.com/tenstorrent-metal/metal-internal-workflows/wiki/Installing-Metal-development-dependencies-on-a-TT-Cloud-VM), which are only available to those who have access to the Tenstorrent cloud. Otherwise, you may skip this step if you are not working on such models. If you are a regular user of this software, you do not need WekaFS.
-
-#### Installing test dependencies
-  Doxygen version >=1.9 && <1.10
+2. Install Doxygen >=1.9 && <1.10
 ```
 git clone https://github.com/doxygen/doxygen.git && cd doxygen/
 git checkout Release_1_9_8
@@ -204,8 +198,7 @@ cmake ..
 make -j$(nproc)
 sudo make install
 ```
-   
-  Gtest version 1.13
+3. Install Gtest version 1.13
 ```
 git clone https://github.com/google/googletest.git && cd googletest/
 git checkout v1.13.0
@@ -214,6 +207,8 @@ cmake ..
 make -j$(nproc)
 sudo make install
 ```
+
+4. If you are working on experimental, internal model development, you must now also install and mount WekaFS. Note that this is only available on Tenstorrent cloud machines. The instructions are on this [page](https://github.com/tenstorrent-metal/metal-internal-workflows/wiki/Installing-Metal-development-dependencies-on-a-TT-Cloud-VM), which are only available to those who have access to the Tenstorrent cloud. Otherwise, you may skip this step if you are not working on such models. If you are a regular user of this software, you do not need WekaFS.
     
 
 #### About wheel installation
