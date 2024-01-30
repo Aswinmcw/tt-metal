@@ -157,25 +157,9 @@ sudo -E python3 setup_hugepages.py enable && sudo -E python3 setup_hugepages.py 
 ```
 sudo apt install clang-6.0=1:6.0.1-14 git git-lfs cmake=3.16.3-1ubuntu1.20.04.1 pandoc libtbb-dev libcapstone-dev pkg-config libfmt-dev
 ```
+2. Download and install [Doxygen](https://www.doxygen.nl/download.html), version 1.9 or higher, but less than 1.10.
 
-2. Install Doxygen >=1.9 && <1.10
-```
-git clone https://github.com/doxygen/doxygen.git && cd doxygen/
-git checkout Release_1_9_8
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-sudo make install
-```
-3. Install Gtest version 1.13
-```
-git clone https://github.com/google/googletest.git && cd googletest/
-git checkout v1.13.0
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-sudo make install
-```
+3. Download and install [gtest](https://github.com/google/googletest) from source, version 1.13, and no higher.
 
 4. If you are working on experimental, internal model development, you must now also install and mount WekaFS. Note that this is only available on Tenstorrent cloud machines. The instructions are on this [page](https://github.com/tenstorrent-metal/metal-internal-workflows/wiki/Installing-Metal-development-dependencies-on-a-TT-Cloud-VM), which are only available to those who have access to the Tenstorrent cloud. Otherwise, you may skip this step if you are not working on such models. If you are a regular user of this software, you do not need WekaFS.
     
