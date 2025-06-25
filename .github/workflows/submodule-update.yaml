@@ -53,6 +53,9 @@ jobs:
         run: |
           PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
 
+          echo "Waiting for workflow to register..."
+          sleep 10
+          
           # Get latest workflow run ID for the branch and workflow name
           RUN_ID=$(gh run list --branch nightly-update-submodule --workflow dummy-post-commit-pass.yaml --json databaseId -q '.[0].databaseId')
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
@@ -89,8 +92,11 @@ jobs:
           CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q '.conclusion')
           echo "Conclusion: $CONCLUSION"
     
-          if [[ "$CONCLUSION" != "success" ]]; then
-            echo "❌ Post-commit failed. Skipping auto-merge."
+          if [[ "$CONCLUSION" == "success" ]]; then
+            gh pr comment "$PR_NUMBER" --body "✅ Post-commit passed! [View run]($RUN_URL)"
+            gh pr ready --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER"
+          else
+            gh pr comment "$PR_NUMBER" --body "❌ Post-commit failed. [View run]($RUN_URL)"
             exit 1
           fi
 
