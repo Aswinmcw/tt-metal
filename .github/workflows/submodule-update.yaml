@@ -25,9 +25,9 @@ jobs:
           git pull origin main
           cd ../../../
 
-          git add tt_metal/third_party/tt_llk
-          git commit -m "Nightly: Update LLK submodule" || echo "No changes to commit"
-          git push origin HEAD:nightly-update-submodule
+          # git add tt_metal/third_party/tt_llk
+          # git commit -m "Nightly: Update LLK submodule" || echo "No changes to commit"
+          # git push origin HEAD:nightly-update-submodule
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
