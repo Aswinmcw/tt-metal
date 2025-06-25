@@ -45,7 +45,7 @@ jobs:
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/all-post-commit-workflows.yaml/dispatches \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/dummy-post-commit-pass.yaml/dispatches \
             -d '{"ref":"nightly-update-submodule"}'
       - name: Comment on PR with Post-Commit Run Link
         env:
@@ -54,7 +54,50 @@ jobs:
           PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
 
           # Get latest workflow run ID for the branch and workflow name
-          RUN_ID=$(gh run list --branch nightly-update-submodule --workflow all-post-commit-workflows.yaml --json databaseId -q '.[0].databaseId')
+          RUN_ID=$(gh run list --branch nightly-update-submodule --workflow dummy-post-commit-pass.yaml --json databaseId -q '.[0].databaseId')
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
 
           gh pr comment "$PR_NUMBER" --body "🔁 Post-commit triggered: [View run]($RUN_URL)"
+      - name: Wait for Post-Commit Workflow to Succeed
+        id: wait_for_post_commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for 'all-post-commit.yaml' to complete..."
+
+          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+          echo "Found PR number: $PR_NUMBER"
+
+          # Get the latest run ID for the workflow on this branch
+          RUN_ID=""
+          while [ -z "$RUN_ID" ]; do
+            RUN_ID=$(gh run list --branch nightly-update-submodule --workflow dummy-post-commit-pass.yaml --json databaseId -q '.[0].databaseId')
+            sleep 5
+          done
+
+          echo "Post-commit run ID: $RUN_ID"
+
+          # Wait for completion
+          STATUS=""
+          while [[ "$STATUS" != "completed" ]]; do
+            STATUS=$(gh run view "$RUN_ID" --json status -q '.status')
+            echo "Status: $STATUS"
+            sleep 10
+          done
+
+          # Check conclusion
+          CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q '.conclusion')
+          echo "Conclusion: $CONCLUSION"
+    
+          if [[ "$CONCLUSION" != "success" ]]; then
+            echo "❌ Post-commit failed. Skipping auto-merge."
+            exit 1
+          fi
+
+      - name: Auto Merge PR
+        if: success()  # only run if previous step succeeded
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+          gh pr merge "$PR_NUMBER" --squash --delete-branch --admin
