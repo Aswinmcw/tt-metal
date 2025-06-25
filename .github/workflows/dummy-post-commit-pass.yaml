@@ -12,5 +12,5 @@ jobs:
       - name: Start dummy post-commit job
         run: |
           echo "Dummy post-commit job started..."
-          sleep 600  # 10 minutes
+          sleep 300  # 5 minutes
           echo "Dummy post-commit job completed successfully."
