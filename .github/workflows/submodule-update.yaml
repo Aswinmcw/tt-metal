@@ -94,7 +94,7 @@ jobs:
     
           if [[ "$CONCLUSION" == "success" ]]; then
             gh pr comment "$PR_NUMBER" --body "✅ Post-commit passed! [View run]($RUN_URL)"
-            gh pr ready --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER"
+            gh pr ready "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
           else
             gh pr comment "$PR_NUMBER" --body "❌ Post-commit failed. [View run]($RUN_URL)"
             exit 1
