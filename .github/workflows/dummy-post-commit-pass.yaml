@@ -1,0 +1,16 @@
+name: Dummy All Post-Commit
+
+on:
+  workflow_dispatch:  # allows manual trigger from Actions tab
+  # schedule:
+  #   - cron: '0 22 * * *'  # Optional: runs daily at 10 PM UTC
+
+jobs:
+  dummy-post-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start dummy post-commit job
+        run: |
+          echo "Dummy post-commit job started..."
+          sleep 600  # 10 minutes
+          echo "Dummy post-commit job completed successfully."
