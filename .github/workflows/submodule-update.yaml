@@ -52,6 +52,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
-          RUN_URL="https://github.com/${{ github.repository }}/actions/workflows/all-post-commit-workflows.yaml"
+
+          # Get latest workflow run ID for the branch and workflow name
+          RUN_ID=$(gh run list --branch nightly-update-submodule --workflow all-post-commit.yaml --json databaseId -q '.[0].databaseId')
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
 
           gh pr comment "$PR_NUMBER" --body "🔁 Post-commit triggered: [View run]($RUN_URL)"
