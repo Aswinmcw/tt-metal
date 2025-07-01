@@ -7,6 +7,8 @@ on:
       llk_sha:
         required: true
         type: string
+  repository_dispatch:
+    types: [trigger-ci]
 
 jobs:
   update-submodule:
