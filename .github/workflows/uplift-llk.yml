@@ -26,60 +26,105 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           cd tt_metal/third_party/tt_llk
+          OLD_SHA=$(git rev-parse HEAD)
+          git fetch origin
           git checkout main
           git pull origin main
+          NEW_SHA=$(git rev-parse HEAD)
           cd ../../../
 
-          # git add tt_metal/third_party/tt_llk
-          # git commit -m "Nightly: Update LLK submodule" || echo "No changes to commit"
-          # git push origin HEAD:nightly-update-submodule
+          CHANGED_FILES=$(git diff --name-only $OLD_SHA $NEW_SHA)
+          echo "$CHANGED_FILES" > changed_files.txt
+          git log --oneline ${OLD_SHA}..${NEW_SHA} > llk_commit_log.txt
+          echo -e "\n### LLK Commits Uplifted:\n" >> llk_commit_log.txt
+          git log --pretty=format:"- %h %s (%an)" ${OLD_SHA}..${NEW_SHA} >> llk_commit_log.txt
+          if echo "$CHANGED_FILES" | grep -q "^tt_llk_wormhole/"; then
+            echo "Detected changes in tt_llk_wormhole/, will run post-commit."
+            export SHOULD_RUN_POST_COMMIT=true
+          else
+            echo "No relevant changes in tt_llk_wormhole/, skipping post-commit."
+            export SHOULD_RUN_POST_COMMIT=false
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "^tt_llk_blackhole/"; then
+            echo "Detected changes in tt_llk_blackhole/, will run post-commit."
+            export SHOULD_RUN_BH_POST_COMMIT=true
+          else
+            echo "No relevant changes in tt_llk_blackhole/, skipping post-commit."
+            export SHOULD_RUN_BH_POST_COMMIT=false
+          fi
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Nightly: Update LLK submodule"
-          title: "Nightly: Update LLK submodule"
-          branch: nightly-update-submodule
+          commit-message: "Update LLK submodule"
+          title: "Update LLK submodule"
+          branch: llk-update-submodule
           delete-branch: true
-          body: |
-            This PR updates the LLK submodule to the latest main commit.
+          body: llk_commit_log.txt
           draft: true
       - name: Trigger All Post-Commit Workflow
+        if: env.SHOULD_RUN_POST_COMMIT == 'true'
         run: |
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/dummy-post-commit-pass.yaml/dispatches \
-            -d '{"ref":"nightly-update-submodule"}'
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/all-post-commit-workflows.yaml/dispatches \
+            -d '{"ref":"llk-update-submodule"}'
+      - name: Trigger BH Post-Commit Workflow
+        if: env.SHOULD_RUN_BH_POST_COMMIT == 'true'
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/blackhole-post-commit.yaml/dispatches \
+            -d '{"ref":"llk-update-submodule"}'
       - name: Comment on PR with Post-Commit Run Link
+        if: env.SHOULD_RUN_POST_COMMIT == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+          PR_NUMBER=$(gh pr list --head llk-update-submodule --json number -q '.[0].number')
 
           echo "Waiting for workflow to register..."
           sleep 10
           
           # Get latest workflow run ID for the branch and workflow name
-          RUN_ID=$(gh run list --branch nightly-update-submodule --workflow dummy-post-commit-pass.yaml --json databaseId -q '.[0].databaseId')
+          RUN_ID=$(gh run list --branch llk-update-submodule --workflow all-post-commit-workflows.yaml --json databaseId -q '.[0].databaseId')
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
 
           gh pr comment "$PR_NUMBER" --body "🔁 Post-commit triggered: [View run]($RUN_URL)"
+      - name: Comment on PR with BH Post-Commit Run Link
+        if: env.SHOULD_RUN_BH_POST_COMMIT == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --head llk-update-submodule --json number -q '.[0].number')
+
+          echo "Waiting for workflow to register..."
+          sleep 10
+          
+          # Get latest workflow run ID for the branch and workflow name
+          RUN_ID=$(gh run list --branch llk-update-submodule --workflow blackhole-post-commit.yaml --json databaseId -q '.[0].databaseId')
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
+
+          gh pr comment "$PR_NUMBER" --body "🔁 BH Post-commit triggered: [View run]($RUN_URL)"
       - name: Wait for Post-Commit Workflow to Succeed
+        if: env.SHOULD_RUN_POST_COMMIT == 'true'
         id: wait_for_post_commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Waiting for 'all-post-commit.yaml' to complete..."
 
-          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+          PR_NUMBER=$(gh pr list --head llk-update-submodule --json number -q '.[0].number')
           echo "Found PR number: $PR_NUMBER"
 
           # Get the latest run ID for the workflow on this branch
           RUN_ID=""
           while [ -z "$RUN_ID" ]; do
-            RUN_ID=$(gh run list --branch nightly-update-submodule --workflow dummy-post-commit-pass.yaml --json databaseId -q '.[0].databaseId')
+            RUN_ID=$(gh run list --branch llk-update-submodule --workflow all-post-commit-workflows.yaml --json databaseId -q '.[0].databaseId')
             sleep 5
           done
 
@@ -105,11 +150,51 @@ jobs:
             exit 1
           fi
 
+      - name: Wait for BH Post-Commit Workflow to Succeed
+        if: env.SHOULD_RUN_BH_POST_COMMIT == 'true'
+        id: wait_for_bh_post_commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for 'blackhole-post-commit.yaml' to complete..."
+
+          PR_NUMBER=$(gh pr list --head llk-update-submodule --json number -q '.[0].number')
+          echo "Found PR number: $PR_NUMBER"
+
+          # Get the latest run ID for the workflow on this branch
+          RUN_ID=""
+          while [ -z "$RUN_ID" ]; do
+            RUN_ID=$(gh run list --branch llk-update-submodule --workflow blackhole-post-commit.yaml --json databaseId -q '.[0].databaseId')
+            sleep 5
+          done
+
+          echo "Post-commit run ID: $RUN_ID"
+
+          # Wait for completion
+          STATUS=""
+          while [[ "$STATUS" != "completed" ]]; do
+            STATUS=$(gh run view "$RUN_ID" --json status -q '.status')
+            echo "Status: $STATUS"
+            sleep 10
+          done
+
+          # Check conclusion
+          CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q '.conclusion')
+          echo "Conclusion: $CONCLUSION"
+    
+          if [[ "$CONCLUSION" == "success" ]]; then
+            gh pr comment "$PR_NUMBER" --body "✅ BH Post-commit passed! [View run]($RUN_URL)"
+            gh pr ready "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+          else
+            gh pr comment "$PR_NUMBER" --body "❌ BH Post-commit failed. [View run]($RUN_URL)"
+            exit 1
+          fi
+
       - name: Auto Merge PR
         if: success()  # only run if previous step succeeded
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+          PR_NUMBER=$(gh pr list --head llk-update-submodule --json number -q '.[0].number')
           gh pr merge "$PR_NUMBER" --squash --delete-branch --admin
 
