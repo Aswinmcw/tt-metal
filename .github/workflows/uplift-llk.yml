@@ -1,0 +1,42 @@
+# .github/workflows/uplift.yml
+name: Uplift LLK Submodule
+
+on:
+  workflow_call:
+    inputs:
+      llk_sha:
+        required: true
+        type: string
+
+jobs:
+  uplift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tt-metal
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Update llk submodule
+        run: |
+          git config user.name "uplift-bot"
+          git config user.email "uplift@tenstorrent.com"
+          git checkout -b test-uplift-${{ inputs.llk_sha }}
+
+          cd tt_metal/third_party/tt-llk
+          git fetch origin
+          git checkout ${{ inputs.llk_sha }}
+          cd ../../..
+
+          git add tt_metal/third_party/tt-llk
+          git commit -m "Uplift to ${{ inputs.llk_sha }}"
+          git push origin HEAD
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Auto-uplift"
+          branch: test-uplift-${{ inputs.llk_sha }}
+          title: Uplift to ${{ inputs.llk_sha }}
+          base: main
