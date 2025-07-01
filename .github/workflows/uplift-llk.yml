@@ -9,34 +9,105 @@ on:
         type: string
 
 jobs:
-  uplift:
+  update-submodule:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout tt-metal
-        uses: actions/checkout@v4
+      - name: Checkout parent repo
+        uses: actions/checkout@v3
         with:
-          submodules: recursive
+          submodules: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update llk submodule
+      - name: Update submodule
         run: |
-          git config user.name "uplift-bot"
-          git config user.email "uplift@tenstorrent.com"
-          git checkout -b test-uplift-${{ inputs.llk_sha }}
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          cd tt_metal/third_party/tt-llk
-          git fetch origin
-          git checkout ${{ inputs.llk_sha }}
-          cd ../../..
+          cd tt_metal/third_party/tt_llk
+          git checkout main
+          git pull origin main
+          cd ../../../
 
-          git add tt_metal/third_party/tt-llk
-          git commit -m "Uplift to ${{ inputs.llk_sha }}"
-          git push origin HEAD
+          # git add tt_metal/third_party/tt_llk
+          # git commit -m "Nightly: Update LLK submodule" || echo "No changes to commit"
+          # git push origin HEAD:nightly-update-submodule
 
-      - name: Create PR
+      - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Auto-uplift"
-          branch: test-uplift-${{ inputs.llk_sha }}
-          title: Uplift to ${{ inputs.llk_sha }}
-          base: main
+          commit-message: "Nightly: Update LLK submodule"
+          title: "Nightly: Update LLK submodule"
+          branch: nightly-update-submodule
+          delete-branch: true
+          body: |
+            This PR updates the LLK submodule to the latest main commit.
+          draft: true
+      - name: Trigger All Post-Commit Workflow
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/dummy-post-commit-pass.yaml/dispatches \
+            -d '{"ref":"nightly-update-submodule"}'
+      - name: Comment on PR with Post-Commit Run Link
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+
+          echo "Waiting for workflow to register..."
+          sleep 10
+          
+          # Get latest workflow run ID for the branch and workflow name
+          RUN_ID=$(gh run list --branch nightly-update-submodule --workflow dummy-post-commit-pass.yaml --json databaseId -q '.[0].databaseId')
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
+
+          gh pr comment "$PR_NUMBER" --body "🔁 Post-commit triggered: [View run]($RUN_URL)"
+      - name: Wait for Post-Commit Workflow to Succeed
+        id: wait_for_post_commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for 'all-post-commit.yaml' to complete..."
+
+          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+          echo "Found PR number: $PR_NUMBER"
+
+          # Get the latest run ID for the workflow on this branch
+          RUN_ID=""
+          while [ -z "$RUN_ID" ]; do
+            RUN_ID=$(gh run list --branch nightly-update-submodule --workflow dummy-post-commit-pass.yaml --json databaseId -q '.[0].databaseId')
+            sleep 5
+          done
+
+          echo "Post-commit run ID: $RUN_ID"
+
+          # Wait for completion
+          STATUS=""
+          while [[ "$STATUS" != "completed" ]]; do
+            STATUS=$(gh run view "$RUN_ID" --json status -q '.status')
+            echo "Status: $STATUS"
+            sleep 10
+          done
+
+          # Check conclusion
+          CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q '.conclusion')
+          echo "Conclusion: $CONCLUSION"
+    
+          if [[ "$CONCLUSION" == "success" ]]; then
+            gh pr comment "$PR_NUMBER" --body "✅ Post-commit passed! [View run]($RUN_URL)"
+            gh pr ready "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+          else
+            gh pr comment "$PR_NUMBER" --body "❌ Post-commit failed. [View run]($RUN_URL)"
+            exit 1
+          fi
+
+      - name: Auto Merge PR
+        if: success()  # only run if previous step succeeded
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --head nightly-update-submodule --json number -q '.[0].number')
+          gh pr merge "$PR_NUMBER" --squash --delete-branch --admin
+
