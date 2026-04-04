@@ -1239,6 +1239,73 @@ jobs:
           name: sweeps-run-result
           path: /work/tests/sweep_framework/results_export/oprun_*.json
           retention-days: 7
+      - name: Generate run summary
+        run: |
+          python3 -c "
+          import json, pathlib
+
+          results_dir = pathlib.Path('/work/tests/sweep_framework/results_export')
+          oprun_files = sorted(results_dir.glob('oprun_*.json'))
+          if not oprun_files:
+              print('No oprun files found, skipping summary')
+              exit(0)
+
+          tests = []
+          for f in oprun_files:
+              data = json.loads(f.read_text())
+              if isinstance(data, dict) and 'tests' in data:
+                  tests.extend(data['tests'])
+              elif isinstance(data, list):
+                  tests.extend(data)
+
+          total = len(tests)
+          passed = sum(1 for t in tests if t.get('status') == 'pass')
+          failed = sum(1 for t in tests if str(t.get('status', '')).startswith('fail'))
+          skipped = total - passed - failed
+          rate = f'{passed * 100.0 / total:.2f}%' if total else 'N/A'
+          icon = '✅' if failed == 0 else '⚠️'
+
+          import os
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY', '')
+          if not summary_path:
+              exit(0)
+
+          lines = [
+              f'## {icon} Sweep Run Summary',
+              '',
+              '| Metric | Value |',
+              '|--------|-------|',
+              f'| **Run Type** | ${{ env.RUN_TYPE }} |',
+              f'| **Architecture** | ${{ needs.resolve-inputs.outputs.arch }} |',
+              f'| **Total Tests** | {total} |',
+              f'| **Passed** | {passed} |',
+              f'| **Failed** | {failed} |',
+              f'| **Skipped** | {skipped} |',
+              f'| **Pass Rate** | **{rate}** |',
+              '',
+          ]
+
+          if failed > 0:
+              failed_tests = [t for t in tests if str(t.get('status', '')).startswith('fail')]
+              lines.append('<details>')
+              lines.append(f'<summary>❌ {failed} Failed Tests</summary>')
+              lines.append('')
+              lines.append('| Test Name | Op | Status |')
+              lines.append('|-----------|-----|--------|')
+              for t in failed_tests[:50]:
+                  name = t.get('full_test_name', 'unknown')
+                  op = t.get('op_name', '')
+                  status = t.get('status', 'fail')
+                  lines.append(f'| \`{name}\` | {op} | {status} |')
+              if failed > 50:
+                  lines.append(f'| ... and {failed - 50} more | | |')
+              lines.append('')
+              lines.append('</details>')
+              lines.append('')
+
+          with open(summary_path, 'a') as f:
+              f.write('\n'.join(lines) + '\n')
+          "
       - name: Push results to database (lead models only)
         if: env.RUN_TYPE == 'lead_models'
         env:

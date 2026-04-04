@@ -62,6 +62,70 @@ def collect_test_results(results_dir: str) -> list[dict]:
     return tests
 
 
+def _write_job_summary(
+    run_id: int,
+    github_pipeline_id: int,
+    run_contents: str,
+    card_type: str,
+    git_sha: str,
+    git_branch: str,
+    tests: list[dict],
+    pass_count: int,
+    fail_count: int,
+) -> None:
+    """Write a GitHub Actions Job Summary with sweep run results."""
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+
+    total = len(tests)
+    pass_rate = f"{pass_count * 100.0 / total:.2f}%" if total else "N/A"
+    status_icon = "✅" if fail_count == 0 else "⚠️"
+
+    lines = [
+        f"## {status_icon} Sweep Run Summary",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| **Run ID** | {run_id} |",
+        f"| **Pipeline ID** | {github_pipeline_id} |",
+        f"| **Run Contents** | {run_contents} |",
+        f"| **Card Type** | {card_type} |",
+        f"| **Git SHA** | `{git_sha}` |",
+        f"| **Branch** | `{git_branch}` |",
+        f"| **Total Tests** | {total} |",
+        f"| **Passed** | {pass_count} |",
+        f"| **Failed** | {fail_count} |",
+        f"| **Pass Rate** | **{pass_rate}** |",
+        "",
+    ]
+
+    # Add failed test details if any
+    if fail_count > 0:
+        failed_tests = [t for t in tests if str(t.get("status", "")).startswith("fail")]
+        lines.append("<details>")
+        lines.append(f"<summary>❌ {fail_count} Failed Tests</summary>")
+        lines.append("")
+        lines.append("| Test Name | Op | Status |")
+        lines.append("|-----------|-----|--------|")
+        for t in failed_tests[:50]:  # Cap at 50 to avoid huge summaries
+            name = t.get("full_test_name", "unknown")
+            op = t.get("op_name", "")
+            status = t.get("status", "fail")
+            lines.append(f"| `{name}` | {op} | {status} |")
+        if fail_count > 50:
+            lines.append(f"| ... and {fail_count - 50} more | | |")
+        lines.append("")
+        lines.append("</details>")
+        lines.append("")
+
+    try:
+        with open(summary_path, "a") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError as e:
+        print(f"WARNING: Could not write job summary: {e}")
+
+
 def push_results(
     results_dir: str,
     github_pipeline_id: int,
@@ -196,6 +260,19 @@ def push_results(
         print(f"  Pass Count: {pass_count}")
         print(f"  Fail Count: {fail_count}")
         print(f"  Pass Rate: {pass_count * 100.0 / len(tests):.2f}%" if tests else "N/A")
+
+        # Write GitHub Job Summary
+        _write_job_summary(
+            run_id=run_id,
+            github_pipeline_id=github_pipeline_id,
+            run_contents=run_contents,
+            card_type=card_type,
+            git_sha=git_sha,
+            git_branch=git_branch,
+            tests=tests,
+            pass_count=pass_count,
+            fail_count=fail_count,
+        )
 
         return run_id
 
